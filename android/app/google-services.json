@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "539638376002",
+    "project_id": "camplink-8e8f1",
+    "storage_bucket": "camplink-8e8f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:539638376002:android:4d5e43d86a5bed3d906fdb",
+        "android_client_info": {
+          "package_name": "com.kytriq.camplink.camplink"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRBHBkRpLKmsjXSydTUPtdvKrPoLfuQk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
