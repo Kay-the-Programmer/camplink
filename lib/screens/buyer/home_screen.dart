@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
@@ -7,9 +8,7 @@ import '../../services/product_service.dart';
 import '../../widgets/notifications_bell.dart';
 import '../../widgets/product_card.dart';
 import '../common/chat_list_screen.dart';
-import '../common/profile_screen.dart';
 import 'cart_screen.dart';
-import 'orders_screen.dart';
 import 'product_detail_screen.dart';
 
 class BuyerHomeScreen extends StatefulWidget {
@@ -33,28 +32,16 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         actions: [
           const NotificationsBell(),
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
+            icon: const Icon(Symbols.chat_bubble),
             tooltip: 'Messages',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ChatListScreen())),
-          ),
-          IconButton(
-            icon: const Icon(Icons.receipt_long),
-            tooltip: 'My orders',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const BuyerOrdersScreen())),
-          ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            tooltip: 'Profile',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen())),
           ),
           Stack(
             alignment: Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.shopping_cart),
+                icon: const Icon(Symbols.shopping_cart),
                 onPressed: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const CartScreen())),
               ),
@@ -85,7 +72,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
             child: TextField(
               decoration: const InputDecoration(
                 hintText: 'Search products...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: Icon(Symbols.search),
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

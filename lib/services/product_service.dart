@@ -1,33 +1,40 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/product.dart';
+import 'api_client.dart';
 
 class ProductService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('products');
-
-  Stream<List<Product>> streamAll() => _col
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(Product.fromDoc).toList());
-
-  Stream<List<Product>> streamBySeller(String sellerId) => _col
-      .where('sellerId', isEqualTo: sellerId)
-      .snapshots()
-      .map((s) => s.docs.map(Product.fromDoc).toList());
-
-  Future<String> create(Product p) async {
-    final ref = await _col.add(p.toMap());
-    return ref.id;
+  Future<List<Product>> fetchAll() async {
+    final data = await ApiClient.get('/products') as List;
+    return data.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<void> update(Product p) async {
-    await _col.doc(p.id).update(p.toMap());
+  Stream<List<Product>> streamAll() => pollingStream(fetchAll);
+
+  Future<List<Product>> fetchBySeller(String sellerId) async {
+    final data = await ApiClient.get('/products/seller/$sellerId') as List;
+    return data.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<Product>> streamBySeller(String sellerId) =>
+      pollingStream(() => fetchBySeller(sellerId));
+
+  Future<List<Product>> fetchMy() async {
+    final data = await ApiClient.get('/products/my') as List;
+    return data.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<Product>> streamMy() => pollingStream(fetchMy);
+
+  Future<Product> create(Product p) async {
+    final data = await ApiClient.post('/products', p.toJson()) as Map<String, dynamic>;
+    return Product.fromJson(data);
+  }
+
+  Future<Product> update(Product p) async {
+    final data = await ApiClient.put('/products/${p.id}', p.toJson()) as Map<String, dynamic>;
+    return Product.fromJson(data);
   }
 
   Future<void> delete(String id) async {
-    await _col.doc(id).delete();
+    await ApiClient.delete('/products/$id');
   }
 }

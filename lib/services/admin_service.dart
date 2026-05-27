@@ -1,21 +1,37 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/app_user.dart';
+import 'api_client.dart';
 
 class AdminService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // ── Users ──────────────────────────────────────────────────────────────────
 
-  Stream<List<AppUser>> streamUsers() => _db
-      .collection('users')
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(AppUser.fromDoc).toList());
+  Future<List<AppUser>> fetchUsers() async {
+    final data = await ApiClient.get('/admin/users') as List;
+    return data.map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<AppUser>> streamUsers() => pollingStream(fetchUsers);
 
   Future<void> setSuspended(String uid, bool suspended) async {
-    await _db.collection('users').doc(uid).update({'suspended': suspended});
+    await ApiClient.patch('/admin/users/$uid/suspend', {'suspended': suspended});
   }
 
   Future<void> setRole(String uid, UserRole role) async {
-    await _db.collection('users').doc(uid).update({'role': roleToString(role)});
+    await ApiClient.patch(
+        '/admin/users/$uid/role', {'role': role.name.toUpperCase()});
+  }
+
+  // ── Provider verification ─────────────────────────────────────────────────
+
+  /// Approve or reject a pending service-provider application.
+  /// [reason] is required when [approved] is false.
+  Future<void> verifyProvider(
+    String uid, {
+    required bool approved,
+    String? reason,
+  }) async {
+    await ApiClient.patch('/admin/users/$uid/verify', {
+      'verificationStatus': approved ? 'APPROVED' : 'REJECTED',
+      if (!approved && reason != null) 'rejectionReason': reason,
+    });
   }
 }

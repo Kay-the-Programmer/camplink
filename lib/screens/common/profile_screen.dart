@@ -2,7 +2,11 @@ import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../app_colors.dart';
+import '../../models/app_user.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
@@ -99,7 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             tooltip: 'Logout',
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Symbols.logout),
             onPressed: () => auth.logout(),
           ),
         ],
@@ -121,21 +125,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 : null),
                         child: (_pickedPhotoBytes == null &&
                                 user.photoUrl == null)
-                            ? const Icon(Icons.person, size: 48)
+                            ? const Icon(Symbols.person, size: 48)
                             : null,
                       ),
                       Positioned(
                         right: -4,
                         bottom: -4,
                         child: Material(
-                          color: Colors.deepPurple,
+                          color: kOrange,
                           shape: const CircleBorder(),
                           child: InkWell(
                             customBorder: const CircleBorder(),
                             onTap: _pickPhoto,
                             child: const Padding(
                               padding: EdgeInsets.all(6),
-                              child: Icon(Icons.camera_alt,
+                              child: Icon(Symbols.camera_alt,
                                   color: Colors.white, size: 18),
                             ),
                           ),
@@ -146,7 +150,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 Center(child: Text(user.email)),
-                Center(child: Text('Role: ${user.role.name}')),
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: kOrangeLight,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      roleLabel(user.role),
+                      style: const TextStyle(
+                          color: kOrange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
                 if (user.studentId != null)
                   Center(child: Text('Student ID: ${user.studentId}')),
                 const SizedBox(height: 24),

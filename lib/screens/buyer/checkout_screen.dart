@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_colors.dart';
 import '../../models/order.dart';
+import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/order_service.dart';
-import '../../widgets/product_card.dart';
 
 const campusLocations = <String>[
   'Hostel A',
@@ -66,28 +68,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     setState(() => _busy = true);
     try {
-      final order = AppOrder(
-        id: '',
-        buyerId: auth.user!.uid,
-        buyerName: auth.user!.fullName,
-        buyerPhone: auth.user!.phone,
-        sellerId: sellerId,
-        items: cart.items.map((i) => OrderLine(
-              productId: i.product.id,
-              name: i.product.name,
-              price: i.product.price,
-              quantity: i.quantity,
-              sellerId: i.product.sellerId,
-            )).toList(),
-        total: cart.total,
-        status: OrderStatus.pending,
+      final order = await OrderService().place(
+        items: cart.items,
         deliveryMethod: _delivery,
         deliveryLocation: loc,
         paymentMethod: _payment,
-        paymentStatus: PaymentStatus.unpaid,
-        createdAt: DateTime.now(),
       );
-      await OrderService().place(order);
       cart.clear();
       if (mounted) {
         showDialog(
@@ -146,7 +132,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               Text(kwacha.format(cart.total),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple)),
+                      color: kOrange)),
             ],
           ),
           const SizedBox(height: 24),
@@ -157,11 +143,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ButtonSegment(
                   value: DeliveryMethod.delivery,
                   label: Text('Delivery'),
-                  icon: Icon(Icons.delivery_dining)),
+                  icon: Icon(Symbols.delivery_dining)),
               ButtonSegment(
                   value: DeliveryMethod.pickup,
                   label: Text('Pickup'),
-                  icon: Icon(Icons.store)),
+                  icon: Icon(Symbols.store)),
             ],
             selected: {_delivery},
             onSelectionChanged: (s) => setState(() => _delivery = s.first),
@@ -191,12 +177,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           const SizedBox(height: 24),
           const Text('Payment method',
               style: TextStyle(fontWeight: FontWeight.bold)),
-          ...PaymentMethod.values.map((m) => RadioListTile<PaymentMethod>(
-                value: m,
-                groupValue: _payment,
-                onChanged: (v) => setState(() => _payment = v!),
-                title: Text(paymentMethodLabel(m)),
-              )),
+          RadioGroup<PaymentMethod>(
+            groupValue: _payment,
+            onChanged: (v) {
+              if (v != null) setState(() => _payment = v);
+            },
+            child: Column(
+              children: PaymentMethod.values
+                  .map((m) => RadioListTile<PaymentMethod>(
+                        value: m,
+                        title: Text(paymentMethodLabel(m)),
+                        contentPadding: EdgeInsets.zero,
+                      ))
+                  .toList(),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: SafeArea(

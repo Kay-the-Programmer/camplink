@@ -1,21 +1,21 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
+import 'app_colors.dart';
 import 'models/app_user.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/auth/complete_profile_screen.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/buyer/home_screen.dart';
-import 'screens/seller/seller_dashboard.dart';
+import 'screens/guest/guest_home_screen.dart';
+import 'screens/main_shell.dart';
+import 'screens/provider/pending_verification_screen.dart';
+import 'screens/provider/provider_shell.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const CampLinkApp());
 }
 
@@ -33,7 +33,7 @@ class CampLinkApp extends StatelessWidget {
         title: 'CampLink',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(seedColor: kOrange),
           useMaterial3: true,
         ),
         home: const _Root(),
@@ -50,7 +50,7 @@ class _Root extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     if (auth.loading) return const SplashScreen();
     if (auth.needsProfileCompletion) return const CompleteProfileScreen();
-    if (!auth.isAuthenticated) return const LoginScreen();
+    if (!auth.isAuthenticated) return const GuestHomeScreen();
     final user = auth.user!;
     if (user.suspended) {
       return Scaffold(
@@ -61,7 +61,7 @@ class _Root extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.block, size: 72, color: Colors.red),
+                const Icon(Symbols.block, size: 72, color: Colors.red),
                 const SizedBox(height: 16),
                 const Text(
                   'Your account has been suspended.\nContact an administrator.',
@@ -78,13 +78,19 @@ class _Root extends StatelessWidget {
         ),
       );
     }
-    switch (user.role) {
-      case UserRole.seller:
-        return const SellerDashboard();
-      case UserRole.admin:
-        return const AdminDashboard();
-      case UserRole.buyer:
-        return const BuyerHomeScreen();
+    if (user.role == UserRole.admin) return const AdminDashboard();
+
+    if (isProvider(user.role)) {
+      // Verified providers get the full shell.
+      if (user.isVerified) return const ProviderShell();
+      // Pending / rejected providers see the holding screen.
+      return PendingVerificationScreen(
+        status: user.verificationStatus ?? VerificationStatus.pending,
+        role: user.role,
+        rejectionReason: user.rejectionReason,
+      );
     }
+
+    return const MainShell();
   }
 }

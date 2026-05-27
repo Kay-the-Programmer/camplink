@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/order.dart';
+import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/order_service.dart';
-import '../../widgets/product_card.dart';
 import 'leave_review_screen.dart';
 
 class BuyerOrdersScreen extends StatelessWidget {
@@ -13,7 +14,7 @@ class BuyerOrdersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.read<AuthProvider>().user;
+    final user = context.watch<AuthProvider>().user;
     final svc = OrderService();
     return Scaffold(
       appBar: AppBar(title: const Text('My Orders')),
@@ -31,7 +32,7 @@ class BuyerOrdersScreen extends StatelessWidget {
                 }
                 return ListView.separated(
                   itemCount: orders.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) => _OrderTile(order: orders[i]),
                 );
               },
@@ -84,7 +85,7 @@ class _OrderTile extends StatelessWidget {
               if (order.status == OrderStatus.delivered) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.star_border),
+                  icon: const Icon(Symbols.star),
                   label: const Text('Leave a review'),
                   onPressed: () => Navigator.push(
                     context,

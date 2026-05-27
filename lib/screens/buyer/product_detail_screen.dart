@@ -1,13 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+
+import '../../app_colors.dart';
 
 import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
-import '../../widgets/product_card.dart';
 import '../../widgets/seller_rating_view.dart';
 import '../common/chat_screen.dart';
+import '../guest/guest_home_screen.dart';
 import 'cart_screen.dart';
 import 'seller_reviews_screen.dart';
 
@@ -18,6 +21,7 @@ class ProductDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final me = context.watch<AuthProvider>().user;
+    final isGuest = me == null;
     final canMessage = me != null && me.uid != product.sellerId;
     return Scaffold(
       appBar: AppBar(
@@ -25,7 +29,7 @@ class ProductDetailScreen extends StatelessWidget {
         actions: [
           if (canMessage)
             IconButton(
-              icon: const Icon(Icons.chat_bubble_outline),
+              icon: const Icon(Symbols.chat_bubble),
               tooltip: 'Message seller',
               onPressed: () => Navigator.push(
                 context,
@@ -37,6 +41,13 @@ class ProductDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
+          // Guest sees an inquiry button that prompts login.
+          if (isGuest)
+            IconButton(
+              icon: const Icon(Symbols.chat_bubble),
+              tooltip: 'Enquire about delivery',
+              onPressed: () => showAuthPrompt(context),
+            ),
         ],
       ),
       body: ListView(
@@ -47,7 +58,7 @@ class ProductDetailScreen extends StatelessWidget {
                 ? CachedNetworkImage(imageUrl: product.imageUrl!, fit: BoxFit.cover)
                 : Container(
                     color: Colors.grey.shade200,
-                    child: const Icon(Icons.shopping_bag, size: 96, color: Colors.grey),
+                    child: const Icon(Symbols.shopping_bag, size: 96, color: Colors.grey),
                   ),
           ),
           Padding(
@@ -61,7 +72,7 @@ class ProductDetailScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(kwacha.format(product.price),
                     style: const TextStyle(
-                        fontSize: 20, color: Colors.deepPurple)),
+                        fontSize: 20, color: kOrange)),
                 const SizedBox(height: 8),
                 Chip(label: Text(product.category)),
                 const SizedBox(height: 12),
@@ -86,7 +97,7 @@ class ProductDetailScreen extends StatelessWidget {
                       SellerRatingView(sellerId: product.sellerId, iconSize: 18),
                       const SizedBox(width: 6),
                       const Text('See reviews',
-                          style: TextStyle(color: Colors.deepPurple, fontSize: 12)),
+                          style: TextStyle(color: kOrange, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -103,11 +114,15 @@ class ProductDetailScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: FilledButton.icon(
-            icon: const Icon(Icons.add_shopping_cart),
+            icon: const Icon(Symbols.add_shopping_cart),
             label: const Text('Add to cart'),
             onPressed: !product.available
                 ? null
                 : () {
+                    if (isGuest) {
+                      showAuthPrompt(context);
+                      return;
+                    }
                     context.read<CartProvider>().add(product);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

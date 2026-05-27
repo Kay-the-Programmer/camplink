@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/review.dart';
@@ -42,7 +43,7 @@ class SellerReviewsScreen extends StatelessWidget {
                 }
                 return ListView.separated(
                   itemCount: reviews.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final r = reviews[i];
                     return ListTile(
@@ -51,9 +52,8 @@ class SellerReviewsScreen extends StatelessWidget {
                           ...List.generate(
                             5,
                             (k) => Icon(
-                              k < r.rating
-                                  ? Icons.star
-                                  : Icons.star_border,
+                              Symbols.star,
+                              fill: k < r.rating ? 1 : 0,
                               color: Colors.amber,
                               size: 16,
                             ),

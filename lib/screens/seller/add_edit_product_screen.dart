@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -147,7 +148,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.add_a_photo, size: 36),
+                                Icon(Symbols.add_a_photo, size: 36),
                                 SizedBox(height: 4),
                                 Text('Tap to add image'),
                               ],

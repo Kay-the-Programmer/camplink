@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/review.dart';
 import '../services/review_service.dart';
@@ -17,13 +18,13 @@ class SellerRatingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<SellerRating>(
-      stream: ReviewService().ratingFor(sellerId),
+      stream: ReviewService().streamRatingFor(sellerId),
       builder: (context, snap) {
         final r = snap.data ?? SellerRating.empty;
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.star, color: Colors.amber, size: iconSize),
+            Icon(Symbols.star, fill: 1, color: Colors.amber, size: iconSize),
             const SizedBox(width: 2),
             Text(
               r.count == 0

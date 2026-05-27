@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_colors.dart';
 import '../../models/notification.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/notification_service.dart';
@@ -12,19 +14,23 @@ class NotificationsScreen extends StatelessWidget {
   IconData _icon(NotificationType t) {
     switch (t) {
       case NotificationType.orderPlaced:
-        return Icons.shopping_bag;
+        return Symbols.shopping_bag;
       case NotificationType.orderConfirmed:
-        return Icons.check_circle;
+        return Symbols.check_circle;
       case NotificationType.orderDelivered:
-        return Icons.local_shipping;
+        return Symbols.local_shipping;
       case NotificationType.orderCancelled:
-        return Icons.cancel;
+        return Symbols.cancel;
       case NotificationType.paymentConfirmed:
-        return Icons.payments;
+        return Symbols.payments;
       case NotificationType.message:
-        return Icons.chat;
+        return Symbols.chat;
+      case NotificationType.requestAccepted:
+        return Symbols.directions_run;
+      case NotificationType.requestFulfilled:
+        return Symbols.check_circle;
       case NotificationType.other:
-        return Icons.notifications;
+        return Symbols.notifications;
     }
   }
 
@@ -39,7 +45,7 @@ class NotificationsScreen extends StatelessWidget {
           if (user != null)
             IconButton(
               tooltip: 'Mark all read',
-              icon: const Icon(Icons.done_all),
+              icon: const Icon(Symbols.done_all),
               onPressed: () => svc.markAllRead(user.uid),
             ),
         ],
@@ -58,13 +64,13 @@ class NotificationsScreen extends StatelessWidget {
                 }
                 return ListView.separated(
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final n = items[i];
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor:
-                            n.read ? Colors.grey.shade300 : Colors.deepPurple,
+                            n.read ? Colors.grey.shade300 : kOrange,
                         child: Icon(_icon(n.type),
                             color: n.read ? Colors.grey : Colors.white,
                             size: 20),

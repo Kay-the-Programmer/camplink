@@ -11,23 +11,26 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Firebase
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  cloud_firestore: ^5.4.4
-  firebase_storage: ^12.3.4
-
   # State management
   provider: ^6.1.2
 
-  # Google Sign-In
-  google_sign_in: ^6.2.1
+  # HTTP client
+  http: ^1.2.2
+
+  # Secure token storage
+  shared_preferences: ^2.3.2
+
+  # Icons
+  material_symbols_icons: ^4.0.0
 
   # Utilities
   image_picker: ^1.1.2
   intl: ^0.19.0
   uuid: ^4.5.1
   cached_network_image: ^3.4.1
+
+  # Google Sign-In
+  google_sign_in: ^6.2.1
 
 dev_dependencies:
   flutter_test:

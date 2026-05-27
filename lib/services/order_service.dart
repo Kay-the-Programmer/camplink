@@ -1,92 +1,60 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-
-import '../models/notification.dart';
 import '../models/order.dart';
-import 'notification_service.dart';
-
-final _kwacha = NumberFormat.currency(locale: 'en_ZM', symbol: 'K', decimalDigits: 2);
+import '../models/cart_item.dart';
+import 'api_client.dart';
 
 class OrderService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final NotificationService _notif = NotificationService();
-
-  CollectionReference<Map<String, dynamic>> get _col => _db.collection('orders');
-
-  Future<String> place(AppOrder order) async {
-    final ref = await _col.add(order.toMap());
-    // Notify seller
-    await _notif.push(
-      userId: order.sellerId,
-      type: NotificationType.orderPlaced,
-      title: 'New order from ${order.buyerName}',
-      body: '${order.items.length} item(s) · ${_kwacha.format(order.total)}',
-      orderId: ref.id,
-    );
-    return ref.id;
+  Future<AppOrder> place({
+    required List<CartItem> items,
+    required DeliveryMethod deliveryMethod,
+    required String deliveryLocation,
+    required PaymentMethod paymentMethod,
+  }) async {
+    final body = {
+      'items': items
+          .map((c) => {'productId': c.product.id, 'quantity': c.quantity})
+          .toList(),
+      'deliveryMethod':  deliveryMethodToApi(deliveryMethod),
+      'deliveryLocation': deliveryLocation,
+      'paymentMethod':   paymentMethodToApi(paymentMethod),
+    };
+    final data = await ApiClient.post('/orders', body) as Map<String, dynamic>;
+    return AppOrder.fromJson(data);
   }
 
-  Stream<List<AppOrder>> streamForBuyer(String buyerId) => _col
-      .where('buyerId', isEqualTo: buyerId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(AppOrder.fromDoc).toList());
-
-  Stream<List<AppOrder>> streamForSeller(String sellerId) => _col
-      .where('sellerId', isEqualTo: sellerId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(AppOrder.fromDoc).toList());
-
-  Stream<List<AppOrder>> streamAll() => _col
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(AppOrder.fromDoc).toList());
-
-  Future<void> updateStatus(String orderId, OrderStatus status) async {
-    await _col.doc(orderId).update({'status': status.name});
-    // Notify buyer
-    final snap = await _col.doc(orderId).get();
-    if (!snap.exists) return;
-    final order = AppOrder.fromDoc(snap);
-    NotificationType type;
-    String title;
-    switch (status) {
-      case OrderStatus.confirmed:
-        type = NotificationType.orderConfirmed;
-        title = 'Order confirmed';
-        break;
-      case OrderStatus.delivered:
-        type = NotificationType.orderDelivered;
-        title = 'Order delivered';
-        break;
-      case OrderStatus.cancelled:
-        type = NotificationType.orderCancelled;
-        title = 'Order cancelled';
-        break;
-      case OrderStatus.pending:
-        return;
-    }
-    await _notif.push(
-      userId: order.buyerId,
-      type: type,
-      title: title,
-      body: '${order.items.length} item(s) · ${_kwacha.format(order.total)}',
-      orderId: orderId,
-    );
+  Future<List<AppOrder>> fetchForBuyer() async {
+    final data = await ApiClient.get('/orders/buyer') as List;
+    return data.map((e) => AppOrder.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<void> markPaid(String orderId) async {
-    await _col.doc(orderId).update({'paymentStatus': PaymentStatus.paid.name});
-    final snap = await _col.doc(orderId).get();
-    if (!snap.exists) return;
-    final order = AppOrder.fromDoc(snap);
-    await _notif.push(
-      userId: order.buyerId,
-      type: NotificationType.paymentConfirmed,
-      title: 'Payment confirmed',
-      body: 'Your payment of ${_kwacha.format(order.total)} was confirmed.',
-      orderId: orderId,
-    );
+  Stream<List<AppOrder>> streamForBuyer(String buyerId) =>
+      pollingStream(fetchForBuyer);
+
+  Future<List<AppOrder>> fetchForSeller() async {
+    final data = await ApiClient.get('/orders/seller') as List;
+    return data.map((e) => AppOrder.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<AppOrder>> streamForSeller(String sellerId) =>
+      pollingStream(fetchForSeller);
+
+  Future<List<AppOrder>> fetchAll() async {
+    final data = await ApiClient.get('/orders') as List;
+    return data.map((e) => AppOrder.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<AppOrder>> streamAll() => pollingStream(fetchAll);
+
+  Future<AppOrder> updateStatus(String orderId, OrderStatus status) async {
+    final data = await ApiClient.patch(
+      '/orders/$orderId/status',
+      {'status': orderStatusToApi(status)},
+    ) as Map<String, dynamic>;
+    return AppOrder.fromJson(data);
+  }
+
+  Future<AppOrder> markPaid(String orderId) async {
+    final data =
+        await ApiClient.patch('/orders/$orderId/paid') as Map<String, dynamic>;
+    return AppOrder.fromJson(data);
   }
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_colors.dart';
+import '../../models/product.dart';
 import '../../providers/cart_provider.dart';
-import '../../widgets/product_card.dart';
 import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
@@ -18,7 +20,7 @@ class CartScreen extends StatelessWidget {
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: cart.items.length,
-              separatorBuilder: (_, __) => const Divider(),
+              separatorBuilder: (_, _) => const Divider(),
               itemBuilder: (_, i) {
                 final item = cart.items[i];
                 return ListTile(
@@ -30,18 +32,18 @@ class CartScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
+                        icon: const Icon(Symbols.remove_circle),
                         onPressed: () => cart.setQuantity(
                             item.product.id, item.quantity - 1),
                       ),
                       Text('${item.quantity}'),
                       IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
+                        icon: const Icon(Symbols.add_circle),
                         onPressed: () => cart.setQuantity(
                             item.product.id, item.quantity + 1),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
+                        icon: const Icon(Symbols.delete, color: Colors.red),
                         onPressed: () => cart.remove(item.product.id),
                       ),
                     ],
@@ -66,7 +68,7 @@ class CartScreen extends StatelessWidget {
                         Text(kwacha.format(cart.total),
                             style: const TextStyle(
                                 fontSize: 18,
-                                color: Colors.deepPurple,
+                                color: kOrange,
                                 fontWeight: FontWeight.bold)),
                       ],
                     ),

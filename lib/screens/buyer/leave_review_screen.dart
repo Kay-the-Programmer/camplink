@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/order.dart';
-import '../../models/review.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/review_service.dart';
 
@@ -39,16 +39,12 @@ class _LeaveReviewScreenState extends State<LeaveReviewScreen> {
         }
         return;
       }
-      await svc.create(Review(
-        id: '',
+      await svc.create(
         sellerId: widget.order.sellerId,
-        buyerId: user.uid,
-        buyerName: user.fullName,
-        orderId: widget.order.id,
-        rating: _rating,
-        comment: _comment.text.trim(),
-        createdAt: DateTime.now(),
-      ));
+        orderId:  widget.order.id,
+        rating:   _rating,
+        comment:  _comment.text.trim(),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Thanks for your review!')));
@@ -82,7 +78,8 @@ class _LeaveReviewScreenState extends State<LeaveReviewScreen> {
                 final v = i + 1;
                 return IconButton(
                   iconSize: 36,
-                  icon: Icon(v <= _rating ? Icons.star : Icons.star_border,
+                  icon: Icon(Symbols.star,
+                      fill: v <= _rating ? 1 : 0,
                       color: Colors.amber),
                   onPressed: () => setState(() => _rating = v),
                 );

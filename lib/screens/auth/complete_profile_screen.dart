@@ -1,13 +1,12 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_colors.dart';
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_client.dart';
 
-/// Shown after a brand-new Google sign-in — the Firebase user exists but no
-/// Firestore profile doc does. Collects the fields Google can't give us
-/// (phone, role, student ID) and pre-fills name from the Google account.
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
 
@@ -17,7 +16,6 @@ class CompleteProfileScreen extends StatefulWidget {
 
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _form = GlobalKey<FormState>();
-  late TextEditingController _name;
   final _phone = TextEditingController();
   final _studentId = TextEditingController();
   UserRole _role = UserRole.buyer;
@@ -25,15 +23,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    final fb = context.read<AuthProvider>().pendingFirebaseUser;
-    _name = TextEditingController(text: fb?.displayName ?? '');
-  }
-
-  @override
   void dispose() {
-    _name.dispose();
     _phone.dispose();
     _studentId.dispose();
     super.dispose();
@@ -41,18 +31,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() { _busy = true; _error = null; });
     try {
-      await context.read<AuthProvider>().completeGoogleProfile(
-            fullName: _name.text,
-            phone: _phone.text,
-            role: _role,
-            studentId: _studentId.text,
-          );
-      // Root listener will re-route automatically.
+      final auth = context.read<AuthProvider>();
+      await auth.completeGoogleProfile(
+        phone: _phone.text,
+        role: _role,
+        studentId: _studentId.text,
+      );
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -62,101 +50,190 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final fb = auth.pendingFirebaseUser;
+    final user = context.read<AuthProvider>().user;
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Finish your account'),
-        actions: [
-          TextButton(
-            onPressed: () => auth.logout(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Form(
             key: _form,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Header
                 Center(
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundImage: fb?.photoURL != null
-                        ? CachedNetworkImageProvider(fb!.photoURL!)
-                        : null,
-                    child: fb?.photoURL == null
-                        ? const Icon(Icons.person, size: 40)
-                        : null,
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: kOrangeLight,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(Symbols.person_add, size: 40, color: kOrange),
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (fb?.email != null)
-                  Center(
-                      child: Text(fb!.email!,
-                          style: const TextStyle(color: Colors.grey))),
                 const SizedBox(height: 16),
                 const Text(
-                  "We need a couple more details before you can start shopping.",
+                  'Complete your profile',
                   textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(
-                      labelText: 'Full Name', border: OutlineInputBorder()),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
+                if (user != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Signed in as ${user.email}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 32),
+
                 TextFormField(
                   controller: _phone,
                   decoration: const InputDecoration(
-                      labelText: 'Phone Number', border: OutlineInputBorder()),
+                    labelText: 'Phone Number',
+                    prefixIcon: Icon(Symbols.phone),
+                    border: OutlineInputBorder(),
+                  ),
                   keyboardType: TextInputType.phone,
-                  validator: (v) => (v == null || v.trim().length < 9)
-                      ? 'Enter a valid phone number'
-                      : null,
+                  textInputAction: TextInputAction.next,
+                  validator: (v) =>
+                      (v == null || v.trim().length < 9) ? 'Enter a valid phone number' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _studentId,
                   decoration: const InputDecoration(
-                      labelText: 'Student ID (optional)',
-                      border: OutlineInputBorder()),
+                    labelText: 'Student ID (optional)',
+                    prefixIcon: Icon(Symbols.badge),
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                const Text('Account type'),
-                const SizedBox(height: 4),
-                SegmentedButton<UserRole>(
-                  segments: const [
-                    ButtonSegment(value: UserRole.buyer, label: Text('Buyer')),
-                    ButtonSegment(value: UserRole.seller, label: Text('Seller')),
-                  ],
-                  selected: {_role},
-                  onSelectionChanged: (s) => setState(() => _role = s.first),
+                const SizedBox(height: 20),
+
+                Text(
+                  'I want to join as…',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
                 ),
+                const SizedBox(height: 10),
+
+                ..._roleOptions.map((opt) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _RoleTile(
+                    option: opt,
+                    selected: _role == opt.role,
+                    onTap: () => setState(() => _role = opt.role),
+                  ),
+                )),
+
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(children: [
+                      Icon(Symbols.error, size: 18, color: scheme.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        _error!,
+                        style: TextStyle(color: scheme.onErrorContainer),
+                      )),
+                    ]),
+                  ),
                 ],
-                const SizedBox(height: 20),
+
+                const SizedBox(height: 24),
                 FilledButton(
                   onPressed: _busy ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                   child: _busy
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Finish'),
+                          height: 20, width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Continue', style: TextStyle(fontSize: 16)),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _busy ? null : () => context.read<AuthProvider>().logout(),
+                  child: Text('Use a different account',
+                      style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+const _roleOptions = [
+  _RoleOption(UserRole.buyer, Symbols.shopping_cart, 'Buyer',
+      'Browse products, place orders and request deliveries.'),
+  _RoleOption(UserRole.seller, Symbols.storefront, 'Seller',
+      'List products and fulfill orders from other students.'),
+  _RoleOption(UserRole.rider, Symbols.directions_car, 'Rider',
+      'Offer campus rides and earn from bookings.'),
+  _RoleOption(UserRole.driver, Symbols.delivery_dining, 'Delivery Driver',
+      'Accept and complete campus delivery requests.'),
+];
+
+class _RoleOption {
+  final UserRole role;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const _RoleOption(this.role, this.icon, this.title, this.subtitle);
+}
+
+class _RoleTile extends StatelessWidget {
+  final _RoleOption option;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RoleTile({required this.option, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? kOrange : Colors.grey.shade300,
+            width: selected ? 2 : 1,
+          ),
+          color: selected ? kOrangeLight : Colors.transparent,
+        ),
+        child: Row(children: [
+          Icon(option.icon, color: selected ? kOrange : Colors.grey.shade600),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(option.title,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: selected ? kOrange : null)),
+              Text(option.subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            ]),
+          ),
+          if (selected)
+            const Icon(Symbols.check_circle, color: kOrange, size: 20),
+        ]),
       ),
     );
   }

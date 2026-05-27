@@ -1,57 +1,28 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/notification.dart';
+import 'api_client.dart';
 
 class NotificationService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('notifications');
-
-  Future<void> push({
-    required String userId,
-    required NotificationType type,
-    required String title,
-    required String body,
-    String? orderId,
-  }) async {
-    await _col.add(AppNotification(
-      id: '',
-      userId: userId,
-      type: type,
-      title: title,
-      body: body,
-      orderId: orderId,
-      read: false,
-      createdAt: DateTime.now(),
-    ).toMap());
+  Future<List<AppNotification>> fetchForUser(String userId) async {
+    final data = await ApiClient.get('/notifications') as List;
+    return data.map((e) => AppNotification.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Stream<List<AppNotification>> streamForUser(String userId) => _col
-      .where('userId', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(AppNotification.fromDoc).toList());
+  Stream<List<AppNotification>> streamForUser(String userId) =>
+      pollingStream(() => fetchForUser(userId), interval: const Duration(seconds: 20));
 
-  Stream<int> unreadCount(String userId) => _col
-      .where('userId', isEqualTo: userId)
-      .where('read', isEqualTo: false)
-      .snapshots()
-      .map((s) => s.docs.length);
+  Future<int> fetchUnreadCount(String userId) async {
+    final data = await ApiClient.get('/notifications/unread-count') as Map<String, dynamic>;
+    return (data['count'] as num).toInt();
+  }
+
+  Stream<int> unreadCount(String userId) =>
+      pollingStream(() => fetchUnreadCount(userId), interval: const Duration(seconds: 20));
 
   Future<void> markRead(String id) async {
-    await _col.doc(id).update({'read': true});
+    await ApiClient.patch('/notifications/$id/read');
   }
 
   Future<void> markAllRead(String userId) async {
-    final batch = _db.batch();
-    final snap = await _col
-        .where('userId', isEqualTo: userId)
-        .where('read', isEqualTo: false)
-        .get();
-    for (final d in snap.docs) {
-      batch.update(d.reference, {'read': true});
-    }
-    await batch.commit();
+    await ApiClient.patch('/notifications/read-all');
   }
 }

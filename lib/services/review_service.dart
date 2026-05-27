@@ -1,34 +1,41 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/review.dart';
+import 'api_client.dart';
 
 class ReviewService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _col => _db.collection('reviews');
-
-  Future<void> create(Review r) async {
-    await _col.add(r.toMap());
+  Future<void> create({
+    required String sellerId,
+    required String orderId,
+    required int rating,
+    required String comment,
+  }) async {
+    await ApiClient.post('/reviews', {
+      'sellerId': sellerId,
+      'orderId':  orderId,
+      'rating':   rating,
+      'comment':  comment,
+    });
   }
 
-  Stream<List<Review>> streamForSeller(String sellerId) => _col
-      .where('sellerId', isEqualTo: sellerId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(Review.fromDoc).toList());
+  Future<List<Review>> fetchForSeller(String sellerId) async {
+    final data = await ApiClient.get('/reviews/seller/$sellerId') as List;
+    return data.map((e) => Review.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<Review>> streamForSeller(String sellerId) =>
+      pollingStream(() => fetchForSeller(sellerId));
 
   Future<bool> orderAlreadyReviewed(String orderId) async {
-    final snap = await _col.where('orderId', isEqualTo: orderId).limit(1).get();
-    return snap.docs.isNotEmpty;
+    final data = await ApiClient.get('/reviews/order/$orderId/exists')
+        as Map<String, dynamic>;
+    return data['reviewed'] as bool;
   }
 
-  Stream<SellerRating> ratingFor(String sellerId) => _col
-      .where('sellerId', isEqualTo: sellerId)
-      .snapshots()
-      .map((s) {
-        if (s.docs.isEmpty) return SellerRating.empty;
-        final total =
-            s.docs.fold<int>(0, (n, d) => n + ((d.data()['rating'] as num?)?.toInt() ?? 0));
-        return SellerRating(total / s.docs.length, s.docs.length);
-      });
+  Future<SellerRating> ratingFor(String sellerId) async {
+    final data = await ApiClient.get('/reviews/seller/$sellerId/rating')
+        as Map<String, dynamic>;
+    return SellerRating.fromJson(data);
+  }
+
+  Stream<SellerRating> streamRatingFor(String sellerId) =>
+      pollingStream(() => ratingFor(sellerId));
 }

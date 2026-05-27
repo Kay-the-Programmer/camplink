@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/product_service.dart';
 import '../../widgets/notifications_bell.dart';
-import '../../widgets/product_card.dart';
 import '../common/chat_list_screen.dart';
-import '../common/profile_screen.dart';
 import 'add_edit_product_screen.dart';
 import 'seller_orders_screen.dart';
 
@@ -20,30 +19,25 @@ class SellerDashboard extends StatelessWidget {
     final svc = ProductService();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Seller Dashboard'),
+        title: const Text('My Store'),
         actions: [
           const NotificationsBell(),
           IconButton(
-            icon: const Icon(Icons.chat_bubble_outline),
+            icon: const Icon(Symbols.chat_bubble),
             tooltip: 'Messages',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ChatListScreen())),
           ),
           IconButton(
-            icon: const Icon(Icons.receipt_long),
+            icon: const Icon(Symbols.receipt_long),
             tooltip: 'Incoming orders',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const SellerOrdersScreen())),
           ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen())),
-          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.add),
+        icon: const Icon(Symbols.add),
         label: const Text('Add product'),
         onPressed: () => Navigator.push(
           context,
@@ -65,7 +59,7 @@ class SellerDashboard extends StatelessWidget {
                 }
                 return ListView.separated(
                   itemCount: products.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final p = products[i];
                     return ListTile(
@@ -76,7 +70,7 @@ class SellerDashboard extends StatelessWidget {
                               width: 56,
                               height: 56,
                               color: Colors.grey.shade200,
-                              child: const Icon(Icons.shopping_bag),
+                              child: const Icon(Symbols.shopping_bag),
                             ),
                       title: Text(p.name),
                       subtitle: Text(

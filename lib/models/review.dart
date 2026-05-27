@@ -1,12 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Review {
   final String id;
   final String sellerId;
   final String buyerId;
   final String buyerName;
-  final String orderId;
-  final int rating; // 1..5
+  final String? orderId;
+  final int rating;
   final String comment;
   final DateTime createdAt;
 
@@ -15,35 +13,22 @@ class Review {
     required this.sellerId,
     required this.buyerId,
     required this.buyerName,
-    required this.orderId,
+    this.orderId,
     required this.rating,
     required this.comment,
     required this.createdAt,
   });
 
-  factory Review.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return Review(
-      id: doc.id,
-      sellerId: d['sellerId'] ?? '',
-      buyerId: d['buyerId'] ?? '',
-      buyerName: d['buyerName'] ?? '',
-      orderId: d['orderId'] ?? '',
-      rating: (d['rating'] as num?)?.toInt() ?? 0,
-      comment: d['comment'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-        'sellerId': sellerId,
-        'buyerId': buyerId,
-        'buyerName': buyerName,
-        'orderId': orderId,
-        'rating': rating,
-        'comment': comment,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+  factory Review.fromJson(Map<String, dynamic> j) => Review(
+        id:        j['id'] as String,
+        sellerId:  j['sellerId'] as String,
+        buyerId:   j['buyerId'] as String,
+        buyerName: j['buyerName'] as String,
+        orderId:   j['orderId'] as String?,
+        rating:    j['rating'] as int,
+        comment:   j['comment'] as String? ?? '',
+        createdAt: DateTime.parse(j['createdAt'] as String),
+      );
 }
 
 class SellerRating {
@@ -51,4 +36,9 @@ class SellerRating {
   final int count;
   const SellerRating(this.average, this.count);
   static const empty = SellerRating(0, 0);
+
+  factory SellerRating.fromJson(Map<String, dynamic> j) => SellerRating(
+        (j['average'] as num).toDouble(),
+        (j['count'] as num).toInt(),
+      );
 }

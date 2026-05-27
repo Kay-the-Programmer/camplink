@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -30,22 +31,24 @@ class ChatListScreen extends StatelessWidget {
           }
           return ListView.separated(
             itemCount: convos.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (_, i) {
               final c = convos[i];
               final otherName = c.otherParticipantName(user.uid);
               return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
+                leading: const CircleAvatar(child: Icon(Symbols.person)),
                 title: Text(otherName),
                 subtitle: Text(
                   c.lastMessage.isEmpty ? '(no messages yet)' : c.lastMessage,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: Text(
-                  DateFormat.MMMd().add_jm().format(c.updatedAt),
-                  style: const TextStyle(fontSize: 11),
-                ),
+                trailing: c.updatedAt != null
+                    ? Text(
+                        DateFormat.MMMd().add_jm().format(c.updatedAt!),
+                        style: const TextStyle(fontSize: 11),
+                      )
+                    : null,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(

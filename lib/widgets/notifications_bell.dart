@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -20,7 +21,7 @@ class NotificationsBell extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.notifications),
+              icon: const Icon(Symbols.notifications),
               tooltip: 'Notifications',
               onPressed: () => Navigator.push(
                 context,

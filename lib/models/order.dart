@@ -1,38 +1,53 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum OrderStatus { pending, confirmed, delivered, cancelled }
+enum DeliveryMethod { delivery, pickup }
+enum PaymentMethod { cashOnDelivery, mtnMomo, airtelMoney, zamtelKwacha }
+enum PaymentStatus { unpaid, paid }
 
 OrderStatus orderStatusFromString(String? s) {
-  switch (s) {
-    case 'confirmed':
-      return OrderStatus.confirmed;
-    case 'delivered':
-      return OrderStatus.delivered;
-    case 'cancelled':
-      return OrderStatus.cancelled;
-    default:
-      return OrderStatus.pending;
+  switch (s?.toUpperCase()) {
+    case 'CONFIRMED': return OrderStatus.confirmed;
+    case 'DELIVERED': return OrderStatus.delivered;
+    case 'CANCELLED': return OrderStatus.cancelled;
+    default:          return OrderStatus.pending;
   }
 }
 
-enum DeliveryMethod { delivery, pickup }
+String orderStatusToApi(OrderStatus s) => s.name.toUpperCase();
 
-enum PaymentMethod { cashOnDelivery, mtnMomo, airtelMoney, zamtelKwacha }
+DeliveryMethod deliveryMethodFromString(String? s) =>
+    s?.toUpperCase() == 'PICKUP' ? DeliveryMethod.pickup : DeliveryMethod.delivery;
 
-enum PaymentStatus { unpaid, paid }
+String deliveryMethodToApi(DeliveryMethod m) => m.name.toUpperCase();
+
+PaymentMethod paymentMethodFromString(String? s) {
+  switch (s?.toUpperCase()) {
+    case 'MTN_MOMO':       return PaymentMethod.mtnMomo;
+    case 'AIRTEL_MONEY':   return PaymentMethod.airtelMoney;
+    case 'ZAMTEL_KWACHA':  return PaymentMethod.zamtelKwacha;
+    default:               return PaymentMethod.cashOnDelivery;
+  }
+}
+
+String paymentMethodToApi(PaymentMethod m) {
+  switch (m) {
+    case PaymentMethod.cashOnDelivery: return 'CASH_ON_DELIVERY';
+    case PaymentMethod.mtnMomo:        return 'MTN_MOMO';
+    case PaymentMethod.airtelMoney:    return 'AIRTEL_MONEY';
+    case PaymentMethod.zamtelKwacha:   return 'ZAMTEL_KWACHA';
+  }
+}
 
 String paymentMethodLabel(PaymentMethod m) {
   switch (m) {
-    case PaymentMethod.cashOnDelivery:
-      return 'Cash on Delivery';
-    case PaymentMethod.mtnMomo:
-      return 'MTN MoMo';
-    case PaymentMethod.airtelMoney:
-      return 'Airtel Money';
-    case PaymentMethod.zamtelKwacha:
-      return 'Zamtel Kwacha';
+    case PaymentMethod.cashOnDelivery: return 'Cash on Delivery';
+    case PaymentMethod.mtnMomo:        return 'MTN MoMo';
+    case PaymentMethod.airtelMoney:    return 'Airtel Money';
+    case PaymentMethod.zamtelKwacha:   return 'Zamtel Kwacha';
   }
 }
+
+PaymentStatus paymentStatusFromString(String? s) =>
+    s?.toUpperCase() == 'PAID' ? PaymentStatus.paid : PaymentStatus.unpaid;
 
 class OrderLine {
   final String productId;
@@ -49,20 +64,20 @@ class OrderLine {
     required this.sellerId,
   });
 
-  factory OrderLine.fromMap(Map<String, dynamic> m) => OrderLine(
-        productId: m['productId'] ?? '',
-        name: m['name'] ?? '',
-        price: (m['price'] as num?)?.toDouble() ?? 0,
-        quantity: (m['quantity'] as num?)?.toInt() ?? 1,
-        sellerId: m['sellerId'] ?? '',
+  factory OrderLine.fromJson(Map<String, dynamic> j) => OrderLine(
+        productId: j['productId'] as String,
+        name:      j['productName'] as String,
+        price:     (j['price'] as num).toDouble(),
+        quantity:  j['quantity'] as int,
+        sellerId:  '',
       );
 
   Map<String, dynamic> toMap() => {
         'productId': productId,
-        'name': name,
-        'price': price,
-        'quantity': quantity,
-        'sellerId': sellerId,
+        'name':      name,
+        'price':     price,
+        'quantity':  quantity,
+        'sellerId':  sellerId,
       };
 }
 
@@ -72,6 +87,7 @@ class AppOrder {
   final String buyerName;
   final String buyerPhone;
   final String sellerId;
+  final String sellerName;
   final List<OrderLine> items;
   final double total;
   final OrderStatus status;
@@ -87,6 +103,7 @@ class AppOrder {
     required this.buyerName,
     required this.buyerPhone,
     required this.sellerId,
+    required this.sellerName,
     required this.items,
     required this.total,
     required this.status,
@@ -97,45 +114,22 @@ class AppOrder {
     required this.createdAt,
   });
 
-  factory AppOrder.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return AppOrder(
-      id: doc.id,
-      buyerId: d['buyerId'] ?? '',
-      buyerName: d['buyerName'] ?? '',
-      buyerPhone: d['buyerPhone'] ?? '',
-      sellerId: d['sellerId'] ?? '',
-      items: ((d['items'] as List?) ?? [])
-          .map((e) => OrderLine.fromMap(Map<String, dynamic>.from(e)))
-          .toList(),
-      total: (d['total'] as num?)?.toDouble() ?? 0,
-      status: orderStatusFromString(d['status']),
-      deliveryMethod: d['deliveryMethod'] == 'pickup'
-          ? DeliveryMethod.pickup
-          : DeliveryMethod.delivery,
-      deliveryLocation: d['deliveryLocation'] ?? '',
-      paymentMethod: PaymentMethod.values.firstWhere(
-        (m) => m.name == d['paymentMethod'],
-        orElse: () => PaymentMethod.cashOnDelivery,
-      ),
-      paymentStatus:
-          d['paymentStatus'] == 'paid' ? PaymentStatus.paid : PaymentStatus.unpaid,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-        'buyerId': buyerId,
-        'buyerName': buyerName,
-        'buyerPhone': buyerPhone,
-        'sellerId': sellerId,
-        'items': items.map((e) => e.toMap()).toList(),
-        'total': total,
-        'status': status.name,
-        'deliveryMethod': deliveryMethod.name,
-        'deliveryLocation': deliveryLocation,
-        'paymentMethod': paymentMethod.name,
-        'paymentStatus': paymentStatus.name,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+  factory AppOrder.fromJson(Map<String, dynamic> j) => AppOrder(
+        id:               j['id'] as String,
+        buyerId:          j['buyerId'] as String,
+        buyerName:        j['buyerName'] as String,
+        buyerPhone:       j['buyerPhone'] as String? ?? '',
+        sellerId:         j['sellerId'] as String,
+        sellerName:       j['sellerName'] as String? ?? '',
+        items:            (j['items'] as List)
+            .map((e) => OrderLine.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        total:            (j['total'] as num).toDouble(),
+        status:           orderStatusFromString(j['status'] as String?),
+        deliveryMethod:   deliveryMethodFromString(j['deliveryMethod'] as String?),
+        deliveryLocation: j['deliveryLocation'] as String? ?? '',
+        paymentMethod:    paymentMethodFromString(j['paymentMethod'] as String?),
+        paymentStatus:    paymentStatusFromString(j['paymentStatus'] as String?),
+        createdAt:        DateTime.parse(j['createdAt'] as String),
+      );
 }

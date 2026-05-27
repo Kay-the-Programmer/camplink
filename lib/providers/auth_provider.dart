@@ -1,42 +1,53 @@
-import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_user.dart';
+import '../services/api_client.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _service = AuthService();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+
   AppUser? _user;
-  User? _pendingFirebaseUser; // signed in via Google but no Firestore profile yet
   bool _loading = true;
+  bool _needsProfileCompletion = false;
 
   AppUser? get user => _user;
-  User? get pendingFirebaseUser => _pendingFirebaseUser;
   bool get loading => _loading;
   bool get isAuthenticated => _user != null;
-  bool get needsProfileCompletion => _user == null && _pendingFirebaseUser != null;
+  bool get needsProfileCompletion => _needsProfileCompletion;
 
   AuthProvider() {
-    _service.authStateChanges().listen((fbUser) async {
-      if (fbUser == null) {
-        _user = null;
-        _pendingFirebaseUser = null;
-      } else {
-        final profile = await _service.fetchProfile(fbUser.uid);
-        if (profile == null) {
-          // Firebase user exists (e.g. just authed via Google) but the
-          // Firestore profile doc hasn't been created yet — route to the
-          // "Complete your profile" screen.
-          _user = null;
-          _pendingFirebaseUser = fbUser;
-        } else {
-          _user = profile;
-          _pendingFirebaseUser = null;
-        }
+    _init();
+  }
+
+  Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+    if (token != null) {
+      ApiClient.setToken(token);
+      try {
+        _user = await _service.fetchProfile();
+      } catch (_) {
+        await _clearToken();
       }
-      _loading = false;
-      notifyListeners();
-    });
+    }
+    _loading = false;
+    notifyListeners();
+  }
+
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('jwt_token', token);
+    ApiClient.setToken(token);
+  }
+
+  Future<void> _clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('jwt_token');
+    ApiClient.setToken(null);
   }
 
   Future<void> register({
@@ -47,7 +58,7 @@ class AuthProvider extends ChangeNotifier {
     required UserRole role,
     String? studentId,
   }) async {
-    _user = await _service.register(
+    final res = await _service.register(
       email: email,
       password: password,
       fullName: fullName,
@@ -55,48 +66,76 @@ class AuthProvider extends ChangeNotifier {
       role: role,
       studentId: studentId,
     );
+    await _saveToken(res['token'] as String);
+    _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) =>
-      _service.login(email, password);
-
-  /// Returns true if Google sign-in completed (the auth state listener will
-  /// pick it up and route accordingly). Returns false if the user cancelled
-  /// the Google account picker.
-  Future<bool> signInWithGoogle() async {
-    final user = await _service.signInWithGoogle();
-    return user != null;
+  Future<void> login(String email, String password) async {
+    final res = await _service.login(email, password);
+    await _saveToken(res['token'] as String);
+    _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    notifyListeners();
   }
 
+  /// Sign in with Google. Triggers the Google account picker, exchanges the
+  /// ID token with the backend, and handles the profile-completion flow.
+  Future<void> loginWithGoogle() async {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return; // user cancelled
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    if (idToken == null) {
+      throw const ApiException(0, 'Google sign-in failed: no ID token received.');
+    }
+
+    final res = await _service.loginWithGoogle(idToken);
+    await _saveToken(res['token'] as String);
+    _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    _needsProfileCompletion =
+        res['needsProfileCompletion'] as bool? ?? _user!.phone.isEmpty;
+    notifyListeners();
+  }
+
+  /// Called from CompleteProfileScreen after a Google user fills in their details.
   Future<void> completeGoogleProfile({
-    required String fullName,
     required String phone,
     required UserRole role,
     String? studentId,
+    String? fullName,
   }) async {
-    final fb = _pendingFirebaseUser;
-    if (fb == null) {
-      throw StateError('No pending Firebase user to complete.');
-    }
-    _user = await _service.completeGoogleProfile(
-      firebaseUser: fb,
-      fullName: fullName,
+    final res = await _service.completeGoogleProfile(
       phone: phone,
       role: role,
       studentId: studentId,
+      fullName: fullName,
     );
-    _pendingFirebaseUser = null;
+    await _saveToken(res['token'] as String);
+    _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    _needsProfileCompletion = false;
     notifyListeners();
   }
 
-  Future<void> resetPassword(String email) => _service.resetPassword(email);
-
-  Future<void> logout() => _service.logout();
+  Future<void> logout() async {
+    _user = null;
+    _needsProfileCompletion = false;
+    await _clearToken();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    notifyListeners();
+  }
 
   Future<void> updateProfile(AppUser updated) async {
-    await _service.updateProfile(updated);
-    _user = updated;
+    _user = await _service.updateProfile(updated);
     notifyListeners();
+  }
+
+  Future<void> refreshProfile() async {
+    try {
+      _user = await _service.fetchProfile();
+      notifyListeners();
+    } catch (_) {}
   }
 }

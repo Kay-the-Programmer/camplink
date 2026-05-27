@@ -1,51 +1,33 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/chat.dart';
-import '../models/notification.dart';
-import 'notification_service.dart';
+import 'api_client.dart';
 
 class ChatService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final NotificationService _notif = NotificationService();
-
-  CollectionReference<Map<String, dynamic>> get _conversations =>
-      _db.collection('conversations');
-
-  CollectionReference<Map<String, dynamic>> _messages(String convoId) =>
-      _conversations.doc(convoId).collection('messages');
-
-  Future<String> ensureConversation({
+  Future<Conversation> ensureConversation({
     required String meUid,
     required String meName,
     required String otherUid,
     required String otherName,
   }) async {
-    final id = conversationIdFor(meUid, otherUid);
-    final docRef = _conversations.doc(id);
-    final snap = await docRef.get();
-    if (!snap.exists) {
-      await docRef.set({
-        'participants': [meUid, otherUid],
-        'participantNames': {meUid: meName, otherUid: otherName},
-        'lastMessage': '',
-        'lastSenderId': '',
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-    }
-    return id;
+    final data = await ApiClient.post('/conversations', {'otherUserId': otherUid})
+        as Map<String, dynamic>;
+    return Conversation.fromJson(data);
   }
 
-  Stream<List<Conversation>> streamForUser(String uid) => _conversations
-      .where('participants', arrayContains: uid)
-      .orderBy('updatedAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(Conversation.fromDoc).toList());
+  Future<List<Conversation>> fetchForUser(String uid) async {
+    final data = await ApiClient.get('/conversations') as List;
+    return data.map((e) => Conversation.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Stream<List<Conversation>> streamForUser(String uid) =>
+      pollingStream(() => fetchForUser(uid), interval: const Duration(seconds: 10));
+
+  Future<List<ChatMessage>> fetchMessages(String convoId) async {
+    final data = await ApiClient.get('/conversations/$convoId/messages') as List;
+    return data.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
+  }
 
   Stream<List<ChatMessage>> streamMessages(String convoId) =>
-      _messages(convoId)
-          .orderBy('sentAt')
-          .snapshots()
-          .map((s) => s.docs.map(ChatMessage.fromDoc).toList());
+      pollingStream(() => fetchMessages(convoId), interval: const Duration(seconds: 5));
 
   Future<void> send({
     required String convoId,
@@ -56,23 +38,6 @@ class ChatService {
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
-    final now = DateTime.now();
-    await _messages(convoId).add(ChatMessage(
-      id: '',
-      senderId: senderId,
-      text: trimmed,
-      sentAt: now,
-    ).toMap());
-    await _conversations.doc(convoId).update({
-      'lastMessage': trimmed,
-      'lastSenderId': senderId,
-      'updatedAt': Timestamp.fromDate(now),
-    });
-    await _notif.push(
-      userId: recipientId,
-      type: NotificationType.message,
-      title: 'New message from $senderName',
-      body: trimmed.length > 80 ? '${trimmed.substring(0, 80)}…' : trimmed,
-    );
+    await ApiClient.post('/conversations/$convoId/messages', {'text': trimmed});
   }
 }

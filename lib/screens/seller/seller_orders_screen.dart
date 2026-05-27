@@ -3,9 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/order.dart';
+import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/order_service.dart';
-import '../../widgets/product_card.dart';
 
 class SellerOrdersScreen extends StatelessWidget {
   const SellerOrdersScreen({super.key});
@@ -30,7 +30,7 @@ class SellerOrdersScreen extends StatelessWidget {
                 }
                 return ListView.separated(
                   itemCount: orders.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, i) =>
                       _SellerOrderTile(order: orders[i], svc: svc),
                 );

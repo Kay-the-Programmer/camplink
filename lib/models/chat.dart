@@ -1,74 +1,74 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Deterministic conversation ID from two participants — sort both UIDs to
-/// guarantee both users land on the same doc regardless of who starts the chat.
-String conversationIdFor(String a, String b) {
-  final pair = [a, b]..sort();
-  return '${pair[0]}_${pair[1]}';
-}
-
 class Conversation {
   final String id;
-  final List<String> participants;
-  final Map<String, String> participantNames;
+  final List<ParticipantInfo> participants;
   final String lastMessage;
   final String lastSenderId;
-  final DateTime updatedAt;
+  final DateTime? updatedAt;
 
   Conversation({
     required this.id,
     required this.participants,
-    required this.participantNames,
     required this.lastMessage,
     required this.lastSenderId,
-    required this.updatedAt,
+    this.updatedAt,
   });
 
-  factory Conversation.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return Conversation(
-      id: doc.id,
-      participants: List<String>.from(d['participants'] ?? const []),
-      participantNames:
-          Map<String, String>.from(d['participantNames'] ?? const {}),
-      lastMessage: d['lastMessage'] ?? '',
-      lastSenderId: d['lastSenderId'] ?? '',
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
+  factory Conversation.fromJson(Map<String, dynamic> j) => Conversation(
+        id:           j['id'] as String,
+        participants: (j['participants'] as List)
+            .map((e) => ParticipantInfo.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        lastMessage:  j['lastMessage'] as String? ?? '',
+        lastSenderId: j['lastSenderId'] as String? ?? '',
+        updatedAt:    j['updatedAt'] != null
+            ? DateTime.parse(j['updatedAt'] as String)
+            : null,
+      );
 
   String otherParticipantId(String me) =>
-      participants.firstWhere((p) => p != me, orElse: () => me);
+      participants.firstWhere((p) => p.id != me, orElse: () => participants.first).id;
+
   String otherParticipantName(String me) =>
-      participantNames[otherParticipantId(me)] ?? 'User';
+      participants.firstWhere((p) => p.id != me, orElse: () => participants.first).name;
+}
+
+class ParticipantInfo {
+  final String id;
+  final String name;
+  final String? photoUrl;
+
+  const ParticipantInfo({required this.id, required this.name, this.photoUrl});
+
+  factory ParticipantInfo.fromJson(Map<String, dynamic> j) => ParticipantInfo(
+        id:       j['id'] as String,
+        name:     j['name'] as String,
+        photoUrl: j['photoUrl'] as String?,
+      );
 }
 
 class ChatMessage {
   final String id;
+  final String conversationId;
   final String senderId;
+  final String senderName;
   final String text;
   final DateTime sentAt;
 
   ChatMessage({
     required this.id,
+    required this.conversationId,
     required this.senderId,
+    required this.senderName,
     required this.text,
     required this.sentAt,
   });
 
-  factory ChatMessage.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return ChatMessage(
-      id: doc.id,
-      senderId: d['senderId'] ?? '',
-      text: d['text'] ?? '',
-      sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-        'senderId': senderId,
-        'text': text,
-        'sentAt': Timestamp.fromDate(sentAt),
-      };
+  factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
+        id:             j['id'] as String,
+        conversationId: j['conversationId'] as String,
+        senderId:       j['senderId'] as String,
+        senderName:     j['senderName'] as String,
+        text:           j['text'] as String,
+        sentAt:         DateTime.parse(j['sentAt'] as String),
+      );
 }

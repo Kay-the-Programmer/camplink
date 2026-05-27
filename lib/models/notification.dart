@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum NotificationType {
   orderPlaced,
   orderConfirmed,
@@ -7,19 +5,27 @@ enum NotificationType {
   orderCancelled,
   paymentConfirmed,
   message,
+  requestAccepted,
+  requestFulfilled,
   other,
 }
 
 NotificationType notifTypeFromString(String? s) {
-  return NotificationType.values.firstWhere(
-    (t) => t.name == s,
-    orElse: () => NotificationType.other,
-  );
+  switch (s?.toUpperCase()) {
+    case 'ORDER_PLACED':       return NotificationType.orderPlaced;
+    case 'ORDER_CONFIRMED':    return NotificationType.orderConfirmed;
+    case 'ORDER_DELIVERED':    return NotificationType.orderDelivered;
+    case 'ORDER_CANCELLED':    return NotificationType.orderCancelled;
+    case 'PAYMENT_CONFIRMED':  return NotificationType.paymentConfirmed;
+    case 'MESSAGE':            return NotificationType.message;
+    case 'REQUEST_ACCEPTED':   return NotificationType.requestAccepted;
+    case 'REQUEST_FULFILLED':  return NotificationType.requestFulfilled;
+    default:                   return NotificationType.other;
+  }
 }
 
 class AppNotification {
   final String id;
-  final String userId;
   final NotificationType type;
   final String title;
   final String body;
@@ -29,7 +35,6 @@ class AppNotification {
 
   AppNotification({
     required this.id,
-    required this.userId,
     required this.type,
     required this.title,
     required this.body,
@@ -38,27 +43,13 @@ class AppNotification {
     required this.createdAt,
   });
 
-  factory AppNotification.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return AppNotification(
-      id: doc.id,
-      userId: d['userId'] ?? '',
-      type: notifTypeFromString(d['type']),
-      title: d['title'] ?? '',
-      body: d['body'] ?? '',
-      orderId: d['orderId'],
-      read: d['read'] ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-        'userId': userId,
-        'type': type.name,
-        'title': title,
-        'body': body,
-        'orderId': orderId,
-        'read': read,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+  factory AppNotification.fromJson(Map<String, dynamic> j) => AppNotification(
+        id:        j['id'] as String,
+        type:      notifTypeFromString(j['type'] as String?),
+        title:     j['title'] as String,
+        body:      j['body'] as String? ?? '',
+        orderId:   j['orderId'] as String?,
+        read:      j['read'] as bool? ?? false,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+      );
 }

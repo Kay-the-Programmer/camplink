@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
+import '../app_colors.dart';
 import '../models/product.dart';
-
-final kwacha = NumberFormat.currency(locale: 'en_ZM', symbol: 'K', decimalDigits: 2);
+import '../services/api_client.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -24,16 +24,16 @@ class ProductCard extends StatelessWidget {
               aspectRatio: 1,
               child: product.imageUrl != null
                   ? CachedNetworkImage(
-                      imageUrl: product.imageUrl!,
+                      imageUrl: ApiClient.fileUrl(product.imageUrl),
                       fit: BoxFit.cover,
-                      placeholder: (_, __) =>
+                      placeholder: (_, _) =>
                           const Center(child: CircularProgressIndicator()),
-                      errorWidget: (_, __, ___) =>
-                          const Icon(Icons.broken_image, size: 48),
+                      errorWidget: (_, _, _) =>
+                          const Icon(Symbols.broken_image, size: 48),
                     )
                   : Container(
                       color: Colors.grey.shade200,
-                      child: const Icon(Icons.shopping_bag,
+                      child: const Icon(Symbols.shopping_bag,
                           size: 48, color: Colors.grey),
                     ),
             ),
@@ -48,7 +48,7 @@ class ProductCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
                   Text(kwacha.format(product.price),
-                      style: const TextStyle(color: Colors.deepPurple)),
+                      style: const TextStyle(color: kOrange)),
                   if (!product.available)
                     const Text('Unavailable',
                         style: TextStyle(color: Colors.red, fontSize: 12)),

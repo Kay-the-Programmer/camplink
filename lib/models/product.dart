@@ -1,4 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+
+final kwacha = NumberFormat.currency(symbol: 'K', decimalDigits: 2);
+
+const productCategories = <String>[
+  'Food',
+  'Groceries',
+  'Stationery',
+  'Electronics',
+  'Clothes',
+  'Services',
+  'Other',
+];
 
 class Product {
   final String id;
@@ -25,41 +37,27 @@ class Product {
     required this.createdAt,
   });
 
-  factory Product.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return Product(
-      id: doc.id,
-      sellerId: d['sellerId'] ?? '',
-      sellerName: d['sellerName'] ?? '',
-      name: d['name'] ?? '',
-      description: d['description'] ?? '',
-      category: d['category'] ?? 'Other',
-      price: (d['price'] as num?)?.toDouble() ?? 0,
-      available: d['available'] ?? true,
-      imageUrl: d['imageUrl'],
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
+  factory Product.fromJson(Map<String, dynamic> j) => Product(
+        id:          j['id'] as String,
+        sellerId:    j['sellerId'] as String,
+        sellerName:  j['sellerName'] as String,
+        name:        j['name'] as String,
+        description: j['description'] as String? ?? '',
+        category:    j['category'] as String,
+        price:       (j['price'] as num).toDouble(),
+        available:   j['available'] as bool? ?? true,
+        imageUrl:    j['imageUrl'] as String?,
+        createdAt:   j['createdAt'] != null
+            ? DateTime.parse(j['createdAt'] as String)
+            : DateTime.now(),
+      );
 
-  Map<String, dynamic> toMap() => {
-        'sellerId': sellerId,
-        'sellerName': sellerName,
-        'name': name,
+  Map<String, dynamic> toJson() => {
+        'name':        name,
         'description': description,
-        'category': category,
-        'price': price,
-        'available': available,
-        'imageUrl': imageUrl,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'category':    category,
+        'price':       price,
+        'available':   available,
+        if (imageUrl != null) 'imageUrl': imageUrl,
       };
 }
-
-const productCategories = <String>[
-  'Food',
-  'Groceries',
-  'Stationery',
-  'Electronics',
-  'Clothes',
-  'Services',
-  'Other',
-];

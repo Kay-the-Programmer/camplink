@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../../app_colors.dart';
 
 import '../../models/chat.dart';
 import '../../providers/auth_provider.dart';
@@ -30,13 +33,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _bootstrap() async {
     final me = context.read<AuthProvider>().user;
     if (me == null) return;
-    final id = await _svc.ensureConversation(
+    final convo = await _svc.ensureConversation(
       meUid: me.uid,
       meName: me.fullName.isEmpty ? me.email : me.fullName,
       otherUid: widget.otherUid,
       otherName: widget.otherName,
     );
-    if (mounted) setState(() => _convoId = id);
+    if (mounted) setState(() => _convoId = convo.id);
   }
 
   @override
@@ -106,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: mine
-                                    ? Colors.deepPurple
+                                    ? kOrange
                                     : Colors.grey.shade200,
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -157,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.send, color: Colors.deepPurple),
+                    icon: const Icon(Symbols.send, color: kOrange),
                     onPressed: _send,
                   ),
                 ],

@@ -1,19 +1,46 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// ── Roles ─────────────────────────────────────────────────────────────────────
 
-enum UserRole { buyer, seller, admin }
+enum UserRole { buyer, seller, rider, driver, admin }
 
 UserRole roleFromString(String? s) {
-  switch (s) {
-    case 'seller':
-      return UserRole.seller;
-    case 'admin':
-      return UserRole.admin;
-    default:
-      return UserRole.buyer;
+  switch (s?.toUpperCase()) {
+    case 'SELLER': return UserRole.seller;
+    case 'RIDER':  return UserRole.rider;
+    case 'DRIVER': return UserRole.driver;
+    case 'ADMIN':  return UserRole.admin;
+    default:       return UserRole.buyer;
   }
 }
 
-String roleToString(UserRole r) => r.name;
+String roleLabel(UserRole r) {
+  switch (r) {
+    case UserRole.buyer:  return 'Buyer';
+    case UserRole.seller: return 'Seller';
+    case UserRole.rider:  return 'Rider';
+    case UserRole.driver: return 'Delivery Driver';
+    case UserRole.admin:  return 'Admin';
+  }
+}
+
+/// True for any role that requires admin verification before operating.
+bool isProvider(UserRole r) =>
+    r == UserRole.seller || r == UserRole.rider || r == UserRole.driver;
+
+// ── Verification status ───────────────────────────────────────────────────────
+
+enum VerificationStatus { pending, approved, rejected }
+
+VerificationStatus verificationStatusFromString(String? s) {
+  switch (s?.toUpperCase()) {
+    case 'APPROVED': return VerificationStatus.approved;
+    case 'REJECTED': return VerificationStatus.rejected;
+    default:         return VerificationStatus.pending;
+  }
+}
+
+String verificationStatusToApi(VerificationStatus s) => s.name.toUpperCase();
+
+// ── User model ────────────────────────────────────────────────────────────────
 
 class AppUser {
   final String uid;
@@ -28,6 +55,13 @@ class AppUser {
   final bool suspended;
   final DateTime createdAt;
 
+  /// Non-null only for providers (seller / rider / driver).
+  /// Null means the account type does not require verification (buyer/admin).
+  final VerificationStatus? verificationStatus;
+
+  /// Populated by the admin when rejecting an application.
+  final String? rejectionReason;
+
   AppUser({
     required this.uid,
     required this.email,
@@ -40,36 +74,52 @@ class AppUser {
     this.location,
     this.suspended = false,
     required this.createdAt,
+    this.verificationStatus,
+    this.rejectionReason,
   });
 
-  factory AppUser.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  // ── Derived helpers ─────────────────────────────────────────────────────────
+
+  /// True when this provider account has been approved to operate.
+  /// Always true for non-providers (buyers / admins).
+  bool get isVerified {
+    if (!isProvider(role)) return true;
+    return verificationStatus == VerificationStatus.approved;
+  }
+
+  // ── JSON ────────────────────────────────────────────────────────────────────
+
+  factory AppUser.fromJson(Map<String, dynamic> j) {
+    final role = roleFromString(j['role'] as String?);
     return AppUser(
-      uid: doc.id,
-      email: d['email'] ?? '',
-      fullName: d['fullName'] ?? '',
-      phone: d['phone'] ?? '',
-      studentId: d['studentId'],
-      role: roleFromString(d['role']),
-      photoUrl: d['photoUrl'],
-      hostel: d['hostel'],
-      location: d['location'],
-      suspended: d['suspended'] ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      uid:       j['id'] as String,
+      email:     j['email'] as String,
+      fullName:  j['fullName'] as String,
+      phone:     j['phone'] as String? ?? '',
+      studentId: j['studentId'] as String?,
+      role:      role,
+      photoUrl:  j['photoUrl'] as String?,
+      hostel:    j['hostel'] as String?,
+      location:  j['location'] as String?,
+      suspended: j['suspended'] as bool? ?? false,
+      createdAt: j['createdAt'] != null
+          ? DateTime.parse(j['createdAt'] as String)
+          : DateTime.now(),
+      // Only parse verificationStatus for provider roles.
+      verificationStatus: isProvider(role)
+          ? verificationStatusFromString(j['verificationStatus'] as String?)
+          : null,
+      rejectionReason: j['rejectionReason'] as String?,
     );
   }
 
   Map<String, dynamic> toMap() => {
-        'email': email,
-        'fullName': fullName,
-        'phone': phone,
+        'fullName':  fullName,
+        'phone':     phone,
         'studentId': studentId,
-        'role': roleToString(role),
-        'photoUrl': photoUrl,
-        'hostel': hostel,
-        'location': location,
-        'suspended': suspended,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'photoUrl':  photoUrl,
+        'hostel':    hostel,
+        'location':  location,
       };
 
   AppUser copyWith({
@@ -80,18 +130,22 @@ class AppUser {
     String? hostel,
     String? location,
     bool? suspended,
+    VerificationStatus? verificationStatus,
+    String? rejectionReason,
   }) =>
       AppUser(
-        uid: uid,
-        email: email,
-        fullName: fullName ?? this.fullName,
-        phone: phone ?? this.phone,
-        studentId: studentId ?? this.studentId,
-        role: role,
-        photoUrl: photoUrl ?? this.photoUrl,
-        hostel: hostel ?? this.hostel,
-        location: location ?? this.location,
-        suspended: suspended ?? this.suspended,
-        createdAt: createdAt,
+        uid:                uid,
+        email:              email,
+        fullName:           fullName           ?? this.fullName,
+        phone:              phone              ?? this.phone,
+        studentId:          studentId          ?? this.studentId,
+        role:               role,
+        photoUrl:           photoUrl           ?? this.photoUrl,
+        hostel:             hostel             ?? this.hostel,
+        location:           location           ?? this.location,
+        suspended:          suspended          ?? this.suspended,
+        createdAt:          createdAt,
+        verificationStatus: verificationStatus ?? this.verificationStatus,
+        rejectionReason:    rejectionReason    ?? this.rejectionReason,
       );
 }
