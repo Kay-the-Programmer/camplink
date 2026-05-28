@@ -7,8 +7,10 @@ import '../../app_colors.dart';
 import '../../models/app_user.dart';
 import '../../models/order.dart';
 import '../../models/product.dart';
+import '../../models/ride_prices.dart';
 import '../../models/shopping_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/ride_prices_provider.dart';
 import '../../services/admin_service.dart';
 import '../../services/order_service.dart';
 import '../../services/product_service.dart';
@@ -30,11 +32,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   int _tab = 0;
 
   static const _tabs = [
-    (icon: Symbols.dashboard,     label: 'Overview'),
-    (icon: Symbols.people,        label: 'Users'),
-    (icon: Symbols.inventory_2,   label: 'Products'),
-    (icon: Symbols.receipt_long,  label: 'Orders'),
+    (icon: Symbols.dashboard,       label: 'Overview'),
+    (icon: Symbols.people,          label: 'Users'),
+    (icon: Symbols.inventory_2,     label: 'Products'),
+    (icon: Symbols.receipt_long,    label: 'Orders'),
     (icon: Symbols.delivery_dining, label: 'Delivery'),
+    (icon: Symbols.directions_car,  label: 'Rides'),
   ];
 
   static const _titles = [
@@ -43,6 +46,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     'Product Moderation',
     'All Orders',
     'Delivery Requests',
+    'Ride Settings',
   ];
 
   @override
@@ -79,6 +83,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           _ProductsTab(),
           _OrdersTab(),
           _DeliveryTab(),
+          _RidesTab(),
         ],
       ),
     );
@@ -1344,6 +1349,348 @@ class _AdminDeliveryTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TAB 5 — RIDE SETTINGS
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _RidesTab extends StatefulWidget {
+  const _RidesTab();
+
+  @override
+  State<_RidesTab> createState() => _RidesTabState();
+}
+
+class _RidesTabState extends State<_RidesTab> {
+  final _form = GlobalKey<FormState>();
+
+  // Controllers initialised from the current provider values.
+  late final TextEditingController _campusToTownCtrl;
+  late final TextEditingController _townToAcrossCtrl;
+  late final TextEditingController _townToInsideCtrl;
+
+  bool _saving  = false;
+  bool _success = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = context.read<RidePricesProvider>().prices;
+    _campusToTownCtrl = TextEditingController(
+        text: p.campusToTown.toStringAsFixed(2));
+    _townToAcrossCtrl = TextEditingController(
+        text: p.townToAcross.toStringAsFixed(2));
+    _townToInsideCtrl = TextEditingController(
+        text: p.townToInsideCampus.toStringAsFixed(2));
+  }
+
+  @override
+  void dispose() {
+    _campusToTownCtrl.dispose();
+    _townToAcrossCtrl.dispose();
+    _townToInsideCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() { _saving = true; _error = null; _success = false; });
+    try {
+      final updated = RidePrices(
+        campusToTown:       double.parse(_campusToTownCtrl.text.trim()),
+        townToAcross:       double.parse(_townToAcrossCtrl.text.trim()),
+        townToInsideCampus: double.parse(_townToInsideCtrl.text.trim()),
+      );
+      await context.read<RidePricesProvider>().updatePrices(updated);
+      if (mounted) setState(() => _success = true);
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Keep field values in sync if another admin updates prices
+    // and the provider notifies while this tab is open.
+    final prices = context.watch<RidePricesProvider>().prices;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // ── Info banner ───────────────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: kOrangeLight,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: kOrange.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            const Icon(Symbols.info, color: kOrange, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'These prices are shown to students before they book a ride. '
+                'Changes take effect immediately for all users.',
+                style: TextStyle(
+                    color: kOrange.withValues(alpha: 0.9), fontSize: 13),
+              ),
+            ),
+          ]),
+        ),
+
+        const SizedBox(height: 24),
+        _SectionHeader(icon: Symbols.directions_car, title: 'Fare Configuration'),
+        const SizedBox(height: 14),
+
+        Form(
+          key: _form,
+          child: Column(children: [
+
+            // ── Campus → Town ─────────────────────────────────────────────
+            _PriceTile(
+              fromIcon: Symbols.school,
+              toIcon: Symbols.location_city,
+              label: 'Campus → Town',
+              description: 'Fare per seat from any campus location to town.',
+              ctrl: _campusToTownCtrl,
+            ),
+            const SizedBox(height: 12),
+
+            // ── Town → Across ─────────────────────────────────────────────
+            _PriceTile(
+              fromIcon: Symbols.location_city,
+              toIcon: Symbols.directions_walk,
+              label: 'Town → Across (outside gate)',
+              description: 'Fare per seat — driver drops passenger at the '
+                  'road crossing outside the campus gate.',
+              ctrl: _townToAcrossCtrl,
+            ),
+            const SizedBox(height: 12),
+
+            // ── Town → Inside Campus ──────────────────────────────────────
+            _PriceTile(
+              fromIcon: Symbols.location_city,
+              toIcon: Symbols.school,
+              label: 'Town → Inside Campus',
+              description: 'Fare per seat — driver enters campus and drops '
+                  'passenger at their chosen location.',
+              ctrl: _townToInsideCtrl,
+            ),
+          ]),
+        ),
+
+        // ── Current prices summary ────────────────────────────────────────
+        const SizedBox(height: 24),
+        _SectionHeader(icon: Symbols.receipt, title: 'Active Prices'),
+        const SizedBox(height: 10),
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          child: Column(children: [
+            _ActivePriceRow(
+              label: 'Campus → Town',
+              amount: prices.campusToTown,
+            ),
+            const Divider(height: 1),
+            _ActivePriceRow(
+              label: 'Town → Across',
+              amount: prices.townToAcross,
+            ),
+            const Divider(height: 1),
+            _ActivePriceRow(
+              label: 'Town → Inside Campus',
+              amount: prices.townToInsideCampus,
+            ),
+          ]),
+        ),
+
+        // ── Feedback ──────────────────────────────────────────────────────
+        if (_success) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(children: [
+              Icon(Symbols.check_circle,
+                  size: 18, color: Colors.green.shade700),
+              const SizedBox(width: 8),
+              Text('Prices updated successfully.',
+                  style: TextStyle(color: Colors.green.shade800)),
+            ]),
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Icon(Symbols.error,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onErrorContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_error!,
+                    style: TextStyle(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onErrorContainer)),
+              ),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14)),
+          child: _saving
+              ? const SizedBox(
+                  height: 20, width: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Text('Save Prices', style: TextStyle(fontSize: 16)),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+}
+
+// ── Price input tile ──────────────────────────────────────────────────────────
+
+class _PriceTile extends StatelessWidget {
+  final IconData fromIcon;
+  final IconData toIcon;
+  final String label;
+  final String description;
+  final TextEditingController ctrl;
+
+  const _PriceTile({
+    required this.fromIcon,
+    required this.toIcon,
+    required this.label,
+    required this.description,
+    required this.ctrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          // Route icon
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: kOrangeLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(fromIcon, size: 16, color: kOrange),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Symbols.arrow_forward, size: 12, color: kOrange),
+              ),
+              Icon(toIcon, size: 16, color: kOrange),
+            ]),
+          ),
+          const SizedBox(width: 12),
+
+          // Label + description
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(description,
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Price input
+          SizedBox(
+            width: 90,
+            child: TextFormField(
+              controller: ctrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              decoration: const InputDecoration(
+                prefixText: 'K ',
+                border: OutlineInputBorder(),
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Required';
+                final n = double.tryParse(v.trim());
+                if (n == null || n <= 0) return 'Invalid';
+                return null;
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Active price row (read-only) ──────────────────────────────────────────────
+
+class _ActivePriceRow extends StatelessWidget {
+  final String label;
+  final double amount;
+  const _ActivePriceRow({required this.label, required this.amount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(children: [
+        Expanded(
+          child: Text(label,
+              style: const TextStyle(fontSize: 13)),
+        ),
+        Text(
+          'K ${amount.toStringAsFixed(2)} / seat',
+          style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: kOrange,
+              fontSize: 13),
+        ),
+      ]),
     );
   }
 }

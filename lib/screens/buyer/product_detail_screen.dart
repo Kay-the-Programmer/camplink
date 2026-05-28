@@ -10,7 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../widgets/seller_rating_view.dart';
 import '../common/chat_screen.dart';
-import '../guest/guest_home_screen.dart';
+import '../../widgets/auth_prompt.dart';
 import 'cart_screen.dart';
 import 'seller_reviews_screen.dart';
 

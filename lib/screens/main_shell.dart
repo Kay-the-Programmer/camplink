@@ -9,12 +9,14 @@ import 'package:provider/provider.dart';
 import '../app_colors.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import '../models/ride_booking.dart';
 import '../models/shopping_request.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../services/api_client.dart';
 import '../services/order_service.dart';
 import '../services/product_service.dart';
+import '../services/ride_service.dart';
 import '../services/shopping_request_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/notifications_bell.dart';
@@ -24,7 +26,7 @@ import 'buyer/leave_review_screen.dart';
 import 'buyer/product_detail_screen.dart';
 import 'common/chat_list_screen.dart';
 import 'requests/create_request_screen.dart';
-import 'seller/seller_orders_screen.dart';
+import 'rides/book_ride_screen.dart';
 
 // ── Tab index constants ───────────────────────────────────────────────────────
 const kTabProducts = 0;
@@ -51,17 +53,20 @@ class MainShell extends StatefulWidget {
 class MainShellState extends State<MainShell> with TickerProviderStateMixin {
   late int _tab;
   late final TabController _reqTabCtrl;
+  late final TabController _ridesTabCtrl;
 
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab;
-    _reqTabCtrl = TabController(length: 2, vsync: this);
+    _reqTabCtrl   = TabController(length: 2, vsync: this);
+    _ridesTabCtrl = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
     _reqTabCtrl.dispose();
+    _ridesTabCtrl.dispose();
     super.dispose();
   }
 
@@ -85,13 +90,14 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
               onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const ChatListScreen())),
             ),
-            IconButton(
-              icon: const Icon(Symbols.receipt_long),
-              tooltip: 'Incoming orders',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const SellerOrdersScreen())),
-            ),
           ],
+          bottom: TabBar(
+            controller: _ridesTabCtrl,
+            tabs: const [
+              Tab(text: 'Available'),
+              Tab(text: 'My Rides'),
+            ],
+          ),
         );
 
       case kTabDelivery:
@@ -129,9 +135,12 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     switch (_tab) {
       case kTabRides:
         return FloatingActionButton.extended(
-          icon: const Icon(Symbols.add),
-          label: const Text('Post a ride'),
-          onPressed: () {/* TODO: add ride screen */},
+          icon: const Icon(Symbols.directions_car),
+          label: const Text('Book a Ride'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const BookRideScreen()),
+          ),
         );
       case kTabDelivery:
         return FloatingActionButton.extended(
@@ -158,7 +167,7 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
         index: _tab,
         children: [
           const _ShopBody(),
-          const _RidesBody(),
+          _RidesBody(ctrl: _ridesTabCtrl),
           _RequestsBody(ctrl: _reqTabCtrl),
           const _OrdersBody(),
           const _ProfileBody(),
@@ -356,34 +365,392 @@ class _ShopBodyState extends State<_ShopBody> {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _RidesBody extends StatelessWidget {
-  const _RidesBody();
+  final TabController ctrl;
+  const _RidesBody({required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return TabBarView(
+      controller: ctrl,
+      children: const [
+        _AvailableRidesPane(),
+        _MyRidesPane(),
+      ],
+    );
+  }
+}
+
+// ── Available rides (pending bookings from other passengers) ──────────────────
+
+class _AvailableRidesPane extends StatelessWidget {
+  const _AvailableRidesPane();
+
+  @override
+  Widget build(BuildContext context) {
+    final me = context.watch<AuthProvider>().user;
+    final svc = RideService();
+    return StreamBuilder<List<RideBooking>>(
+      stream: svc.streamPending(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final rides = (snap.data ?? [])
+            .where((r) => r.passengerId != me?.uid)
+            .toList();
+        if (rides.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Symbols.directions_car,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                const Text('No ride requests yet',
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text(
+                  'When other students post ride requests, they\'ll appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ]),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: rides.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (_, i) =>
+              _RideCard(ride: rides[i], myUid: me?.uid, isDriver: true),
+        );
+      },
+    );
+  }
+}
+
+// ── My rides ──────────────────────────────────────────────────────────────────
+
+class _MyRidesPane extends StatelessWidget {
+  const _MyRidesPane();
+
+  @override
+  Widget build(BuildContext context) {
+    final me = context.watch<AuthProvider>().user;
+    final svc = RideService();
+    return StreamBuilder<List<RideBooking>>(
+      stream: svc.streamMine(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final rides = snap.data ?? [];
+        if (rides.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Symbols.hail,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                const Text('No rides yet',
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap "Book a Ride" below to request a campus ride.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ]),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: rides.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (_, i) =>
+              _RideCard(ride: rides[i], myUid: me?.uid, isDriver: false),
+        );
+      },
+    );
+  }
+}
+
+// ── Ride card ─────────────────────────────────────────────────────────────────
+
+class _RideCard extends StatefulWidget {
+  final RideBooking ride;
+  final String? myUid;
+  final bool isDriver;
+  const _RideCard(
+      {required this.ride, required this.myUid, required this.isDriver});
+
+  @override
+  State<_RideCard> createState() => _RideCardState();
+}
+
+class _RideCardState extends State<_RideCard> {
+  bool _loading = false;
+  final _svc = RideService();
+
+  Color get _statusColor {
+    switch (widget.ride.status) {
+      case RideStatus.pending:    return Colors.orange;
+      case RideStatus.accepted:   return Colors.blue;
+      case RideStatus.inProgress: return Colors.indigo;
+      case RideStatus.completed:  return Colors.green;
+      case RideStatus.cancelled:  return Colors.red;
+    }
+  }
+
+  Future<void> _act(Future<void> Function() fn) async {
+    setState(() => _loading = true);
+    try {
+      await fn();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.ride;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.all(14),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Symbols.directions_car,
-                size: 72, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 16),
-            const Text(
-              'Campus Rides',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            // ── Header row ─────────────────────────────────────────────────
+            Row(children: [
+              Expanded(
+                child: Row(children: [
+                  Icon(
+                    r.type == RideType.instant ? Symbols.bolt : Symbols.schedule,
+                    size: 16,
+                    color: r.type == RideType.instant
+                        ? Colors.amber.shade700
+                        : Colors.blue,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    r.type == RideType.instant ? 'Book Now' : 'Reserved',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: r.type == RideType.instant
+                            ? Colors.amber.shade700
+                            : Colors.blue),
+                  ),
+                ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _statusColor.withValues(alpha: 0.4)),
+                ),
+                child: Text(rideStatusLabel(r.status),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: _statusColor,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+
+            const SizedBox(height: 12),
+
+            // ── Route ──────────────────────────────────────────────────────
+            Row(
+              children: [
+                Column(children: [
+                  Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [BoxShadow(color: Colors.green.shade200, blurRadius: 4)],
+                    ),
+                  ),
+                  Container(
+                    width: 2, height: 28,
+                    color: Colors.grey.shade300,
+                  ),
+                  Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: kOrange,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [BoxShadow(color: kOrange.withValues(alpha: 0.3), blurRadius: 4)],
+                    ),
+                  ),
+                ]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.from,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 14)),
+                      const SizedBox(height: 16),
+                      Text(r.to,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Book or offer rides around campus.\nThis feature is coming soon.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
+
+            const SizedBox(height: 12),
+
+            // ── Chips row ──────────────────────────────────────────────────
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              _chip(
+                r.direction == RouteDirection.campusToTown
+                    ? Symbols.school
+                    : Symbols.location_city,
+                r.direction == RouteDirection.campusToTown
+                    ? 'Campus → Town'
+                    : 'Town → Campus',
+              ),
+              if (r.direction == RouteDirection.townToCampus)
+                _chip(
+                  r.dropOff == DropOff.across
+                      ? Symbols.directions_walk
+                      : Symbols.school,
+                  r.dropOffLabel,
+                  color: r.dropOff == DropOff.across
+                      ? Colors.green
+                      : kOrange,
+                ),
+              _chip(Symbols.person,
+                  '${r.seats} seat${r.seats > 1 ? 's' : ''}'),
+              if (r.scheduledAt != null)
+                _chip(Symbols.schedule,
+                    DateFormat('d MMM  •  h:mm a').format(r.scheduledAt!),
+                    color: Colors.blue),
+              if (r.fare != null)
+                _chip(Symbols.account_balance_wallet,
+                    'K${r.fare!.toStringAsFixed(0)}',
+                    color: Colors.green),
+            ]),
+
+            if (r.note != null && r.note!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(r.note!,
+                  style: TextStyle(
+                      fontSize: 12, color: scheme.onSurfaceVariant)),
+            ],
+
+            // ── Driver info ────────────────────────────────────────────────
+            if (r.driverName != null) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                const Icon(Symbols.directions_car, size: 15, color: kOrange),
+                const SizedBox(width: 4),
+                Text('Driver: ${r.driverName}',
+                    style: const TextStyle(
+                        color: kOrange, fontSize: 13)),
+              ]),
+            ],
+
+            // ── Passenger name (shown on Available tab) ────────────────────
+            if (widget.isDriver) ...[
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Symbols.person, size: 15, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text('Requested by ${r.passengerName}',
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.grey)),
+              ]),
+            ],
+
+            const Divider(height: 20),
+
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else
+              _actions(r, scheme),
           ],
         ),
       ),
     );
   }
+
+  Widget _actions(RideBooking r, ColorScheme scheme) {
+    // Driver view — accept a pending ride
+    if (widget.isDriver && r.status == RideStatus.pending) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          icon: const Icon(Symbols.directions_car),
+          label: const Text('Accept this ride'),
+          onPressed: () => _act(() => _svc.accept(r.id)),
+        ),
+      );
+    }
+    // Driver view — mark as complete
+    if (widget.isDriver &&
+        r.status == RideStatus.accepted &&
+        r.driverId == widget.myUid) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          icon: const Icon(Symbols.check_circle),
+          label: const Text('Mark as completed'),
+          onPressed: () => _act(() => _svc.complete(r.id)),
+        ),
+      );
+    }
+    // Passenger view — cancel active ride
+    if (!widget.isDriver &&
+        r.passengerId == widget.myUid &&
+        r.isActive) {
+      return OutlinedButton.icon(
+        icon: const Icon(Symbols.cancel, color: Colors.red),
+        label: const Text('Cancel ride',
+            style: TextStyle(color: Colors.red)),
+        onPressed: () => _act(() => _svc.cancel(r.id)),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _chip(IconData icon, String label, {Color? color}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: (color ?? Colors.grey).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border:
+              Border.all(color: (color ?? Colors.grey).withValues(alpha: 0.3)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 12, color: color ?? Colors.grey),
+          const SizedBox(width: 4),
+          Text(label,
+              style:
+                  TextStyle(fontSize: 11, color: color ?? Colors.grey)),
+        ]),
+      );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

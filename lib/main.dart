@@ -6,6 +6,7 @@ import 'app_colors.dart';
 import 'models/app_user.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
+import 'providers/ride_prices_provider.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/auth/complete_profile_screen.dart';
 import 'screens/guest/guest_home_screen.dart';
@@ -28,6 +29,7 @@ class CampLinkApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => RidePricesProvider()),
       ],
       child: MaterialApp(
         title: 'CampLink',
