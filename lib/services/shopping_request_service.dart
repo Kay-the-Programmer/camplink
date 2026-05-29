@@ -35,14 +35,14 @@ class ShoppingRequestService {
     String? note,
     double? runnerFee,
   }) async {
-    final body = {
+    final body = <String, dynamic>{
       'title': title,
       'items': items.map((i) => i.toJson()).toList(),
       'deliveryHostel': deliveryHostel,
-      'deliveryRoom': ?deliveryRoom,
-      'budget':       ?budget,
-      'note':         ?note,
-      'runnerFee':    ?runnerFee,
+      if (deliveryRoom != null) 'deliveryRoom': deliveryRoom,
+      if (budget != null)       'budget':        budget,
+      if (note != null)         'note':           note,
+      if (runnerFee != null)    'runnerFee':      runnerFee,
     };
     final data = await ApiClient.post('/requests', body) as Map<String, dynamic>;
     return ShoppingRequest.fromJson(data);

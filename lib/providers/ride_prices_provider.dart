@@ -22,8 +22,8 @@ class RidePricesProvider extends ChangeNotifier {
     try {
       _prices = await _svc.fetch();
       _error = null;
-    } catch (_) {
-      // Keep defaults if the backend is unreachable.
+    } catch (e) {
+      _error = e.toString();
     } finally {
       _loading = false;
       notifyListeners();

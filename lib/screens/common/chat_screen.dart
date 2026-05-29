@@ -33,13 +33,22 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _bootstrap() async {
     final me = context.read<AuthProvider>().user;
     if (me == null) return;
-    final convo = await _svc.ensureConversation(
-      meUid: me.uid,
-      meName: me.fullName.isEmpty ? me.email : me.fullName,
-      otherUid: widget.otherUid,
-      otherName: widget.otherName,
-    );
-    if (mounted) setState(() => _convoId = convo.id);
+    try {
+      final convo = await _svc.ensureConversation(
+        meUid: me.uid,
+        meName: me.fullName.isEmpty ? me.email : me.fullName,
+        otherUid: widget.otherUid,
+        otherName: widget.otherName,
+      );
+      if (mounted) setState(() => _convoId = convo.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open chat: $e')),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   @override

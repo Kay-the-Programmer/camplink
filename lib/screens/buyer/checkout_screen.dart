@@ -5,21 +5,10 @@ import 'package:provider/provider.dart';
 import '../../app_colors.dart';
 import '../../models/order.dart';
 import '../../models/product.dart';
+import '../../models/ride_booking.dart' show campusLocations;
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../services/order_service.dart';
-
-const campusLocations = <String>[
-  'Hostel A',
-  'Hostel B',
-  'Hostel C',
-  'Hostel D',
-  'Lecture Rooms',
-  'Main Gate',
-  'Library',
-  'Cafeteria',
-  'Sports Complex',
-];
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
