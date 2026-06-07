@@ -2,10 +2,17 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Change this to your machine's IP when testing on a physical device.
-/// Android emulator: http://10.0.2.2:8080
-/// iOS simulator / desktop: http://localhost:8080
-const _kBaseUrl = 'http://172.20.128.1:8080/api';
+/// Backend base URL. Override at build/run time without editing this file:
+///   flutter run --dart-define=API_BASE_URL=https://camplink-api.onrender.com/api
+///
+/// Defaults below are for LOCAL development:
+///   Android emulator:        http://10.0.2.2:8080/api
+///   iOS simulator / desktop: http://localhost:8080/api
+///   Physical device on LAN:  http://YOUR_PC_LAN_IP:8080/api
+const _kBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://172.20.128.1:8080/api',
+);
 
 class ApiException implements Exception {
   final int statusCode;
