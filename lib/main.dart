@@ -11,12 +11,12 @@ import 'screens/admin/admin_dashboard.dart';
 import 'screens/auth/complete_profile_screen.dart';
 import 'screens/guest/guest_home_screen.dart';
 import 'screens/main_shell.dart';
-import 'screens/provider/pending_verification_screen.dart';
-import 'screens/provider/provider_shell.dart';
 import 'screens/splash_screen.dart';
+import 'services/push_messaging.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushMessaging.initFirebase();
   runApp(const CampLinkApp());
 }
 
@@ -34,6 +34,7 @@ class CampLinkApp extends StatelessWidget {
       child: MaterialApp(
         title: 'CampLink',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootMessengerKey,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: kOrange),
           useMaterial3: true,
@@ -82,17 +83,11 @@ class _Root extends StatelessWidget {
     }
     if (user.role == UserRole.admin) return const AdminDashboard();
 
-    if (isProvider(user.role)) {
-      // Verified providers get the full shell.
-      if (user.isVerified) return const ProviderShell();
-      // Pending / rejected providers see the holding screen.
-      return PendingVerificationScreen(
-        status: user.verificationStatus ?? VerificationStatus.pending,
-        role: user.role,
-        rejectionReason: user.rejectionReason,
-      );
-    }
-
+    // Every other role — buyer, seller, rider and driver — lands in the full
+    // marketplace shell so anyone can browse and buy. Providers reach their
+    // dashboard and see their verification status from the Profile tab, instead
+    // of being held on a blocking review screen while their application is
+    // pending.
     return const MainShell();
   }
 }

@@ -6,8 +6,10 @@ import '../../models/product.dart';
 import '../../models/ride_booking.dart';
 import '../../services/product_service.dart';
 import '../../services/ride_service.dart';
+import '../../services/search_history_service.dart';
 import '../../widgets/auth_prompt.dart';
 import '../../widgets/product_card.dart';
+import '../../widgets/search_suggestions_panel.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../buyer/product_detail_screen.dart';
@@ -118,8 +120,42 @@ class _GuestProductsBody extends StatefulWidget {
 
 class _GuestProductsBodyState extends State<_GuestProductsBody> {
   final _productService = ProductService();
+  final _historySvc = SearchHistoryService();
+  final _focus = FocusNode();
+  final _ctrl = TextEditingController();
   String _query = '';
   String _category = 'All';
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() => _focused = _focus.hasFocus);
+    if (!_focus.hasFocus && _query.isNotEmpty) {
+      _historySvc.add(_query);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _selectSuggestion(String q) {
+    _historySvc.add(q);
+    _ctrl.text = q;
+    setState(() => _query = q.toLowerCase());
+    _focus.unfocus();
+  }
+
+  bool get _showSuggestions => _focused && _query.isEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -163,43 +199,66 @@ class _GuestProductsBodyState extends State<_GuestProductsBody> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: TextField(
-            decoration: const InputDecoration(
+            focusNode: _focus,
+            controller: _ctrl,
+            decoration: InputDecoration(
               hintText: 'Search products...',
-              prefixIcon: Icon(Symbols.search),
-              border: OutlineInputBorder(),
+              prefixIcon: const Icon(Symbols.search),
+              suffixIcon: _query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Symbols.close),
+                      onPressed: () {
+                        _ctrl.clear();
+                        setState(() => _query = '');
+                      },
+                    )
+                  : null,
+              border: const OutlineInputBorder(),
               isDense: true,
             ),
             onChanged: (v) => setState(() => _query = v.toLowerCase()),
+            onSubmitted: (v) {
+              if (v.trim().isNotEmpty) _historySvc.add(v.trim());
+            },
           ),
         ),
 
-        // Category chips
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 44,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: ['All', ...productCategories].map((c) {
-              final selected = c == _category;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(c),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _category = c),
-                ),
-              );
-            }).toList(),
+        if (!_showSuggestions) ...[
+          // Category chips
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: ['All', ...productCategories].map((c) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(c),
+                    selected: c == _category,
+                    onSelected: (_) => setState(() => _category = c),
+                  ),
+                );
+              }).toList(),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
 
-        // Product grid
+        // Product grid or suggestions
         Expanded(
-          child: StreamBuilder<List<Product>>(
-            stream: _productService.streamAll(),
-            builder: (context, snap) {
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _showSuggestions
+                ? SearchSuggestionsPanel(
+                    key: const ValueKey('suggestions'),
+                    onSelect: _selectSuggestion,
+                  )
+                : StreamBuilder<List<Product>>(
+                    key: const ValueKey('grid'),
+                    stream: _productService.streamAll(),
+                    builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -247,6 +306,7 @@ class _GuestProductsBodyState extends State<_GuestProductsBody> {
             },
           ),
         ),
+      ),
       ],
     );
   }

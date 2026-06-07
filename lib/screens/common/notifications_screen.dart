@@ -29,6 +29,12 @@ class NotificationsScreen extends StatelessWidget {
         return Symbols.directions_run;
       case NotificationType.requestFulfilled:
         return Symbols.check_circle;
+      case NotificationType.rideAccepted:
+        return Symbols.directions_car;
+      case NotificationType.rideCompleted:
+        return Symbols.where_to_vote;
+      case NotificationType.rideCancelled:
+        return Symbols.cancel;
       case NotificationType.other:
         return Symbols.notifications;
     }

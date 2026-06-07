@@ -130,6 +130,8 @@ class AppOrder {
         deliveryLocation: j['deliveryLocation'] as String? ?? '',
         paymentMethod:    paymentMethodFromString(j['paymentMethod'] as String?),
         paymentStatus:    paymentStatusFromString(j['paymentStatus'] as String?),
-        createdAt:        DateTime.parse(j['createdAt'] as String),
+        createdAt:        j['createdAt'] != null
+            ? DateTime.parse(j['createdAt'] as String)
+            : DateTime.now(),
       );
 }

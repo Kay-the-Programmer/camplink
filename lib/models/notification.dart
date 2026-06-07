@@ -7,6 +7,9 @@ enum NotificationType {
   message,
   requestAccepted,
   requestFulfilled,
+  rideAccepted,
+  rideCompleted,
+  rideCancelled,
   other,
 }
 
@@ -20,6 +23,9 @@ NotificationType notifTypeFromString(String? s) {
     case 'MESSAGE':            return NotificationType.message;
     case 'REQUEST_ACCEPTED':   return NotificationType.requestAccepted;
     case 'REQUEST_FULFILLED':  return NotificationType.requestFulfilled;
+    case 'RIDE_ACCEPTED':      return NotificationType.rideAccepted;
+    case 'RIDE_COMPLETED':     return NotificationType.rideCompleted;
+    case 'RIDE_CANCELLED':     return NotificationType.rideCancelled;
     default:                   return NotificationType.other;
   }
 }

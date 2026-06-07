@@ -26,6 +26,14 @@ String roleLabel(UserRole r) {
 bool isProvider(UserRole r) =>
     r == UserRole.seller || r == UserRole.rider || r == UserRole.driver;
 
+/// True only for riders and drivers whose application has been approved — the
+/// sole users allowed to view and accept the open delivery pool. Everyone else
+/// (buyers, sellers, pending riders/drivers) must never see those requests.
+bool canRunDeliveries(AppUser? u) =>
+    u != null &&
+    (u.role == UserRole.rider || u.role == UserRole.driver) &&
+    u.isVerified;
+
 // ── Verification status ───────────────────────────────────────────────────────
 
 enum VerificationStatus { pending, approved, rejected }

@@ -1,7 +1,4 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
@@ -10,13 +7,17 @@ import '../../app_colors.dart';
 import '../../models/app_user.dart';
 import '../../models/order.dart';
 import '../../models/product.dart';
+import '../../models/service_listing.dart';
 import '../../models/shopping_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_client.dart';
 import '../../services/order_service.dart';
 import '../../services/product_service.dart';
+import '../../services/service_listing_service.dart';
 import '../../services/shopping_request_service.dart';
-import '../../services/storage_service.dart';
 import '../../widgets/notifications_bell.dart';
+import '../../widgets/profile_editor.dart';
+import '../../widgets/register_service_sheet.dart';
 import '../common/chat_list_screen.dart';
 import '../seller/add_edit_product_screen.dart';
 
@@ -46,45 +47,26 @@ class _ProviderShellState extends State<ProviderShell> {
     switch (_tab) {
       case _kDashboard: return 'Dashboard';
       case _kServices:
-        if (u.role == UserRole.seller) return 'My Products';
+        if (u.role == UserRole.seller) return 'My Listings';
         if (u.role == UserRole.rider)  return 'My Rides';
-        return 'My Deliveries';
-      case _kOrders:   return 'Incoming';
+        return 'Deliveries';
+      case _kOrders:
+        return u.role == UserRole.seller ? 'Incoming Orders' : 'My Jobs';
       case _kProfile:  return 'Profile';
       default:         return 'CampLink';
     }
   }
 
-  Widget? _fab(BuildContext ctx, AppUser u) {
-    if (_tab == _kServices) {
-      switch (u.role) {
-        case UserRole.seller:
-          return FloatingActionButton.extended(
-            heroTag: 'provider_fab',
-            icon: const Icon(Symbols.add),
-            label: const Text('Add product'),
-            onPressed: () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const AddEditProductScreen())),
-          );
-        case UserRole.rider:
-          return FloatingActionButton.extended(
-            heroTag: 'provider_fab',
-            icon: const Icon(Symbols.add),
-            label: const Text('Post ride'),
-            onPressed: () {/* TODO: ride creation screen */},
-          );
-        default:
-          return null;
-      }
-    }
-    return null;
-  }
+  String get _listingsLabel => 'Listings';
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user!;
+    // This shell is pushed on top of MainShell; on logout the user briefly
+    // becomes null before this route is popped, so guard against it.
+    final user = context.watch<AuthProvider>().user;
+    if (user == null) return const SizedBox.shrink();
 
     return Scaffold(
       appBar: AppBar(
@@ -99,28 +81,27 @@ class _ProviderShellState extends State<ProviderShell> {
           ),
         ],
       ),
-      floatingActionButton: _fab(context, user),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Symbols.dashboard),
             selectedIcon: Icon(Symbols.dashboard, fill: 1),
             label: 'Dashboard',
           ),
           NavigationDestination(
-            icon: Icon(Symbols.inventory_2),
-            selectedIcon: Icon(Symbols.inventory_2, fill: 1),
-            label: 'Services',
+            icon: const Icon(Symbols.storefront),
+            selectedIcon: const Icon(Symbols.storefront, fill: 1),
+            label: _listingsLabel,
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Symbols.receipt_long),
             selectedIcon: Icon(Symbols.receipt_long, fill: 1),
-            label: 'Incoming',
+            label: 'Orders',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Symbols.person),
             selectedIcon: Icon(Symbols.person, fill: 1),
             label: 'Profile',
@@ -133,7 +114,7 @@ class _ProviderShellState extends State<ProviderShell> {
           _DashboardTab(user: user),
           _ServicesTab(user: user),
           _IncomingTab(user: user),
-          _ProfileTab(user: user),
+          const ProfileEditor(showLogout: true),
         ],
       ),
     );
@@ -226,12 +207,16 @@ class _GreetingCard extends StatelessWidget {
               ],
             ),
           ),
-          // Logout button
+          // Logout button — pop back to the root shell first so we don't leave
+          // this pushed dashboard stranded over the guest screen.
           Consumer<AuthProvider>(
-            builder: (_, auth, _) => IconButton(
+            builder: (ctx, auth, _) => IconButton(
               icon: const Icon(Symbols.logout, color: Colors.white),
               tooltip: 'Logout',
-              onPressed: auth.logout,
+              onPressed: () {
+                Navigator.of(ctx).popUntil((r) => r.isFirst);
+                auth.logout();
+              },
             ),
           ),
         ],
@@ -481,7 +466,7 @@ class _RequestActivityTile extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// TAB 1 — SERVICES
+// TAB 1 — LISTINGS
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _ServicesTab extends StatelessWidget {
@@ -492,14 +477,88 @@ class _ServicesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (user.role) {
       case UserRole.seller:
-        return _SellerProductsPane(sellerId: user.uid);
+        return _SellerListingsPane(sellerId: user.uid);
       case UserRole.driver:
         return const _DriverDeliveryPane();
       case UserRole.rider:
         return const _RiderPane();
       default:
-        return const Center(child: Text('No services configured.'));
+        return const Center(child: Text('No listings configured.'));
     }
+  }
+}
+
+// ── Seller: products + services, one place ────────────────────────────────────
+
+/// Sellers manage both products and service listings here, switched with a
+/// segmented control. A single context-aware button adds the right kind.
+class _SellerListingsPane extends StatefulWidget {
+  final String sellerId;
+  const _SellerListingsPane({required this.sellerId});
+
+  @override
+  State<_SellerListingsPane> createState() => _SellerListingsPaneState();
+}
+
+class _SellerListingsPaneState extends State<_SellerListingsPane> {
+  int _seg = 0; // 0 = products, 1 = services
+
+  void _add() {
+    if (_seg == 0) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const AddEditProductScreen()));
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => const RegisterServiceSheet(),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(
+                      value: 0,
+                      icon: Icon(Symbols.inventory_2),
+                      label: Text('Products')),
+                  ButtonSegment(
+                      value: 1,
+                      icon: Icon(Symbols.handyman),
+                      label: Text('Services')),
+                ],
+                selected: {_seg},
+                onSelectionChanged: (s) => setState(() => _seg = s.first),
+              ),
+            ),
+            Expanded(
+              child: _seg == 0
+                  ? _SellerProductsPane(sellerId: widget.sellerId)
+                  : const _SellerServicesPane(),
+            ),
+          ],
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'listings_fab',
+            icon: const Icon(Symbols.add),
+            label: Text(_seg == 0 ? 'Add product' : 'Add service'),
+            onPressed: _add,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -627,6 +686,100 @@ class _SellerProductsPane extends StatelessWidget {
   }
 }
 
+// ── Seller: service listings management ───────────────────────────────────────
+
+class _SellerServicesPane extends StatelessWidget {
+  const _SellerServicesPane();
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = ServiceListingService();
+    return StreamBuilder<List<ServiceListing>>(
+      stream: svc.streamMine(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting &&
+            snap.data == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final services = snap.data ?? [];
+        if (services.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Symbols.handyman, size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                const Text('No services yet.',
+                    style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                const Text('Tap "Add service" to list one.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.only(bottom: 88),
+          itemCount: services.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (_, i) {
+            final s = services[i];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: kOrangeLight,
+                child: const Icon(Symbols.handyman, color: kOrange),
+              ),
+              title: Text(s.title,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                '${serviceCategoryLabel(s.category)}'
+                '${s.price != null ? '  ·  ${kwacha.format(s.price)}' : ''}'
+                '${s.available ? '' : '  ·  Unavailable'}',
+              ),
+              trailing: PopupMenuButton<String>(
+                onSelected: (v) async {
+                  if (v == 'toggle') {
+                    await svc.toggleAvailability(s.id, !s.available);
+                  } else if (v == 'delete') {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Delete service?'),
+                        content: Text(s.title),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Delete',
+                                  style: TextStyle(color: Colors.red))),
+                        ],
+                      ),
+                    );
+                    if (ok == true) await svc.delete(s.id);
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                      value: 'toggle',
+                      child: Text(s.available
+                          ? 'Mark unavailable'
+                          : 'Mark available')),
+                  const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete',
+                          style: TextStyle(color: Colors.red))),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 // ── Driver: active delivery requests ─────────────────────────────────────────
 
 class _DriverDeliveryPane extends StatelessWidget {
@@ -678,6 +831,7 @@ class _DeliveryRequestCard extends StatefulWidget {
 
 class _DeliveryRequestCardState extends State<_DeliveryRequestCard> {
   bool _loading = false;
+  bool _accepted = false;
 
   @override
   Widget build(BuildContext context) {
@@ -729,7 +883,14 @@ class _DeliveryRequestCardState extends State<_DeliveryRequestCard> {
                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ]),
             const SizedBox(height: 12),
-            if (_loading)
+            if (_accepted)
+              Row(children: [
+                Icon(Symbols.check_circle, size: 18, color: Colors.green.shade600),
+                const SizedBox(width: 6),
+                Text('Accepted — see "Incoming"',
+                    style: TextStyle(color: Colors.green.shade700)),
+              ])
+            else if (_loading)
               const Center(child: CircularProgressIndicator())
             else
               SizedBox(
@@ -741,10 +902,16 @@ class _DeliveryRequestCardState extends State<_DeliveryRequestCard> {
                     setState(() => _loading = true);
                     try {
                       await ShoppingRequestService().accept(r.id);
-                    } catch (e) {
+                      if (context.mounted) {
+                        setState(() => _accepted = true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Delivery accepted!')));
+                      }
+                    } on ApiException catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('$e')));
+                            SnackBar(content: Text(e.message)));
                       }
                     } finally {
                       if (mounted) setState(() => _loading = false);
@@ -1103,192 +1270,6 @@ class _ActiveDeliveryCardState extends State<_ActiveDeliveryCard> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// TAB 3 — PROFILE
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _ProfileTab extends StatefulWidget {
-  final AppUser user;
-  const _ProfileTab({required this.user});
-
-  @override
-  State<_ProfileTab> createState() => _ProfileTabState();
-}
-
-class _ProfileTabState extends State<_ProfileTab> {
-  late TextEditingController _name;
-  late TextEditingController _phone;
-  late TextEditingController _hostel;
-  late TextEditingController _location;
-  XFile? _pickedPhoto;
-  Uint8List? _pickedBytes;
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final u = widget.user;
-    _name     = TextEditingController(text: u.fullName);
-    _phone    = TextEditingController(text: u.phone);
-    _hostel   = TextEditingController(text: u.hostel ?? '');
-    _location = TextEditingController(text: u.location ?? '');
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _phone.dispose();
-    _hostel.dispose();
-    _location.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickPhoto() async {
-    final x = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, maxWidth: 600, imageQuality: 80);
-    if (x == null) return;
-    setState(() { _pickedPhoto = x; _pickedBytes = null; });
-    final bytes = await x.readAsBytes();
-    if (mounted) setState(() => _pickedBytes = bytes);
-  }
-
-  Future<void> _save() async {
-    final auth = context.read<AuthProvider>();
-    final user = auth.user;
-    if (user == null) return;
-    setState(() => _busy = true);
-    try {
-      String? photoUrl = user.photoUrl;
-      if (_pickedPhoto != null) {
-        photoUrl = await StorageService()
-            .uploadImage(_pickedPhoto!, 'avatars/${user.uid}');
-      }
-      await auth.updateProfile(user.copyWith(
-        fullName: _name.text.trim(),
-        phone:    _phone.text.trim(),
-        hostel:   _hostel.text.trim(),
-        location: _location.text.trim(),
-        photoUrl: photoUrl,
-      ));
-      if (mounted) {
-        setState(() { _pickedPhoto = null; _pickedBytes = null; });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Profile updated')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().user!;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Avatar
-        Center(
-          child: Stack(
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundImage: _pickedBytes != null
-                    ? MemoryImage(_pickedBytes!) as ImageProvider
-                    : (user.photoUrl != null
-                        ? NetworkImage(user.photoUrl!)
-                        : null),
-                child: (_pickedBytes == null && user.photoUrl == null)
-                    ? const Icon(Symbols.person, size: 48)
-                    : null,
-              ),
-              Positioned(
-                right: -4,
-                bottom: -4,
-                child: Material(
-                  color: kOrange,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _pickPhoto,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Icon(Symbols.camera_alt,
-                          color: Colors.white, size: 18),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Center(child: Text(user.email)),
-        Center(
-          child: Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-            decoration: BoxDecoration(
-              color: kOrangeLight,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(roleLabel(user.role),
-                style: const TextStyle(color: kOrange, fontSize: 12)),
-          ),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _name,
-          decoration: const InputDecoration(
-              labelText: 'Full Name', border: OutlineInputBorder()),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _phone,
-          decoration: const InputDecoration(
-              labelText: 'Phone', border: OutlineInputBorder()),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _hostel,
-          decoration: const InputDecoration(
-              labelText: 'Hostel', border: OutlineInputBorder()),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _location,
-          decoration: const InputDecoration(
-              labelText: 'Other location / block',
-              border: OutlineInputBorder()),
-        ),
-        const SizedBox(height: 20),
-        FilledButton(
-          onPressed: _busy ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save changes'),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red)),
-          icon: const Icon(Symbols.logout),
-          label: const Text('Logout'),
-          onPressed: () => context.read<AuthProvider>().logout(),
-        ),
-      ],
     );
   }
 }

@@ -5,10 +5,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/push_messaging.dart';
 
 class AuthProvider extends ChangeNotifier {
+  /// Web OAuth client ID (client_type 3) from android/app/google-services.json.
+  /// Required on Android so Google returns an [idToken] we can verify on the
+  /// backend — without it `googleAuth.idToken` is null. The backend must accept
+  /// this same client ID as the token audience.
+  static const _googleServerClientId =
+      '539638376002-c7kjflgfit25iv08gruoe2hifaj659ao.apps.googleusercontent.com';
+
   final AuthService _service = AuthService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: const ['email', 'profile'],
+    serverClientId: _googleServerClientId,
+  );
 
   AppUser? _user;
   bool _loading = true;
@@ -30,6 +41,7 @@ class AuthProvider extends ChangeNotifier {
       ApiClient.setToken(token);
       try {
         _user = await _service.fetchProfile();
+        PushMessaging.start();
       } catch (_) {
         await _clearToken();
       }
@@ -68,6 +80,7 @@ class AuthProvider extends ChangeNotifier {
     );
     await _saveToken(res['token'] as String);
     _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    PushMessaging.start();
     notifyListeners();
   }
 
@@ -75,6 +88,7 @@ class AuthProvider extends ChangeNotifier {
     final res = await _service.login(email, password);
     await _saveToken(res['token'] as String);
     _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    PushMessaging.start();
     notifyListeners();
   }
 
@@ -95,6 +109,7 @@ class AuthProvider extends ChangeNotifier {
     _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
     _needsProfileCompletion =
         res['needsProfileCompletion'] as bool? ?? _user!.phone.isEmpty;
+    PushMessaging.start();
     notifyListeners();
   }
 
@@ -118,6 +133,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Unregister the device token while we're still authenticated.
+    await PushMessaging.stop();
     _user = null;
     _needsProfileCompletion = false;
     await _clearToken();
@@ -129,6 +146,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> updateProfile(AppUser updated) async {
     _user = await _service.updateProfile(updated);
+    notifyListeners();
+  }
+
+  /// Buyer requests a provider account; on success the role changes to the
+  /// requested provider role with a PENDING verification status.
+  Future<void> requestUpgrade(UserRole role) async {
+    _user = await _service.requestUpgrade(role);
     notifyListeners();
   }
 

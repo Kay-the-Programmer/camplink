@@ -25,4 +25,15 @@ class NotificationService {
   Future<void> markAllRead(String userId) async {
     await ApiClient.patch('/notifications/read-all');
   }
+
+  // ── Push device tokens ──────────────────────────────────────────────────────
+
+  Future<void> registerToken(String token) async {
+    await ApiClient.post('/notifications/token', {'token': token});
+  }
+
+  Future<void> unregisterToken(String token) async {
+    await ApiClient.delete(
+        '/notifications/token?token=${Uri.encodeQueryComponent(token)}');
+  }
 }

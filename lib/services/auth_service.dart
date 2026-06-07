@@ -57,6 +57,15 @@ class AuthService {
     return AppUser.fromJson(data);
   }
 
+  /// Buyer requests to become a provider (seller / rider / driver). The account
+  /// is moved into the pending-verification queue for an admin to review.
+  Future<AppUser> requestUpgrade(UserRole role) async {
+    final data = await ApiClient.post('/auth/upgrade-request', {
+      'role': role.name.toUpperCase(),
+    }) as Map<String, dynamic>;
+    return AppUser.fromJson(data);
+  }
+
   Future<AppUser> updateProfile(AppUser user) async {
     final data = await ApiClient.put('/auth/me', user.toMap()) as Map<String, dynamic>;
     return AppUser.fromJson(data);

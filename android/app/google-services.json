@@ -12,7 +12,20 @@
           "package_name": "com.kytriq.camplink.camplink"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "539638376002-8ht9flhn8rf7fmbj4gbfrjrm1592uusc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kytriq.camplink.camplink",
+            "certificate_hash": "a8764d08dedcb9e3217ef99113a1840d0ab0d7ee"
+          }
+        },
+        {
+          "client_id": "539638376002-c7kjflgfit25iv08gruoe2hifaj659ao.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDRBHBkRpLKmsjXSydTUPtdvKrPoLfuQk0"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "539638376002-c7kjflgfit25iv08gruoe2hifaj659ao.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "539638376002-acl6127ijknvjcbs35e17atvqr4pthip.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kytriq.camplink.camplink"
+              }
+            }
+          ]
         }
       }
     }
