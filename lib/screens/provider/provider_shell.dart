@@ -15,6 +15,7 @@ import '../../services/order_service.dart';
 import '../../services/product_service.dart';
 import '../../services/service_listing_service.dart';
 import '../../services/shopping_request_service.dart';
+import '../../widgets/confirm.dart';
 import '../../widgets/notifications_bell.dart';
 import '../../widgets/profile_editor.dart';
 import '../../widgets/register_service_sheet.dart';
@@ -174,8 +175,9 @@ class _GreetingCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundImage:
-                user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
+            backgroundImage: user.photoUrl != null
+                ? NetworkImage(ApiClient.fileUrl(user.photoUrl))
+                : null,
             backgroundColor: Colors.white.withValues(alpha: 0.25),
             child: user.photoUrl == null
                 ? const Icon(Symbols.person, color: Colors.white, size: 30)
@@ -213,7 +215,16 @@ class _GreetingCard extends StatelessWidget {
             builder: (ctx, auth, _) => IconButton(
               icon: const Icon(Symbols.logout, color: Colors.white),
               tooltip: 'Logout',
-              onPressed: () {
+              onPressed: () async {
+                final ok = await confirmAction(
+                  ctx,
+                  title: 'Log out?',
+                  message: 'You will need to sign in again to continue.',
+                  confirmLabel: 'Log out',
+                  icon: Symbols.logout,
+                  destructive: true,
+                );
+                if (!ok || !ctx.mounted) return;
                 Navigator.of(ctx).popUntil((r) => r.isFirst);
                 auth.logout();
               },
@@ -353,7 +364,7 @@ class _RecentActivity extends StatelessWidget {
           }
           final orders = (snap.data ?? []).take(5).toList();
           if (orders.isEmpty) {
-            return _emptyActivity('No orders yet. Your first sale is coming!');
+            return const _SellerOnboarding();
           }
           return Column(
             children: orders.map((o) => _OrderActivityTile(order: o)).toList(),
@@ -389,6 +400,65 @@ class _RecentActivity extends StatelessWidget {
               style: const TextStyle(color: Colors.grey)),
         ),
       );
+}
+
+/// First-run guidance for a seller whose dashboard has no activity yet. Nudges
+/// them to create their first product or service listing.
+class _SellerOnboarding extends StatelessWidget {
+  const _SellerOnboarding();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kOrangeLight,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Icon(Symbols.rocket_launch, size: 48, color: kOrange),
+          const SizedBox(height: 12),
+          const Text('No activity yet',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text(
+            "You haven't made any sales yet. Get started by listing your first "
+            'product or service so students can find you.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(Symbols.add_box),
+              label: const Text('List a product'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const AddEditProductScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Symbols.handyman),
+              label: const Text('Offer a service'),
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                builder: (_) => const RegisterServiceSheet(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OrderActivityTile extends StatelessWidget {
@@ -608,8 +678,16 @@ class _SellerProductsPane extends StatelessWidget {
               leading: p.imageUrl != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(6),
-                      child: Image.network(p.imageUrl!,
-                          width: 54, height: 54, fit: BoxFit.cover),
+                      child: Image.network(ApiClient.fileUrl(p.imageUrl),
+                          width: 54,
+                          height: 54,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                                width: 54,
+                                height: 54,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Symbols.broken_image),
+                              )),
                     )
                   : Container(
                       width: 54,
@@ -643,7 +721,7 @@ class _SellerProductsPane extends StatelessWidget {
                       category: p.category,
                       price: p.price,
                       available: !p.available,
-                      imageUrl: p.imageUrl,
+                      imageUrls: p.imageUrls,
                       createdAt: p.createdAt,
                     ));
                   } else if (v == 'delete') {

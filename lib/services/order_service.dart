@@ -21,6 +21,12 @@ class OrderService {
     return AppOrder.fromJson(data);
   }
 
+  /// Fetch a single order by id. Caller must be the buyer, seller, or an admin.
+  Future<AppOrder> fetchById(String id) async {
+    final data = await ApiClient.get('/orders/$id') as Map<String, dynamic>;
+    return AppOrder.fromJson(data);
+  }
+
   Future<List<AppOrder>> fetchForBuyer() async {
     final data = await ApiClient.get('/orders/buyer') as List;
     return data.map((e) => AppOrder.fromJson(e as Map<String, dynamic>)).toList();

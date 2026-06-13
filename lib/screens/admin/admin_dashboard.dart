@@ -12,9 +12,11 @@ import '../../models/shopping_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/ride_prices_provider.dart';
 import '../../services/admin_service.dart';
+import '../../services/api_client.dart';
 import '../../services/order_service.dart';
 import '../../services/product_service.dart';
 import '../../services/shopping_request_service.dart';
+import '../../widgets/confirm.dart';
 import '../../widgets/notifications_bell.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -56,10 +58,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: Text(_titles[_tab]),
         actions: [
           const NotificationsBell(),
-          IconButton(
-            icon: const Icon(Symbols.logout),
-            tooltip: 'Logout',
-            onPressed: () => context.read<AuthProvider>().logout(),
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Symbols.logout),
+              tooltip: 'Logout',
+              onPressed: () async {
+                final ok = await confirmAction(
+                  ctx,
+                  title: 'Log out?',
+                  message: 'You will need to sign in again to continue.',
+                  confirmLabel: 'Log out',
+                  icon: Symbols.logout,
+                  destructive: true,
+                );
+                if (ok && ctx.mounted) ctx.read<AuthProvider>().logout();
+              },
+            ),
           ),
         ],
       ),
@@ -635,8 +649,9 @@ class _UserTile extends StatelessWidget {
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: CircleAvatar(
-        backgroundImage:
-            user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
+        backgroundImage: user.photoUrl != null
+            ? NetworkImage(ApiClient.fileUrl(user.photoUrl))
+            : null,
         backgroundColor:
             user.suspended ? Colors.red.shade100 : _roleColor.withValues(alpha: 0.15),
         child: user.photoUrl == null
@@ -917,8 +932,16 @@ class _ProductsTabState extends State<_ProductsTab> {
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: p.imageUrl != null
-                          ? Image.network(p.imageUrl!,
-                              width: 50, height: 50, fit: BoxFit.cover)
+                          ? Image.network(ApiClient.fileUrl(p.imageUrl),
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey.shade200,
+                                    child: const Icon(Symbols.broken_image),
+                                  ))
                           : Container(
                               width: 50,
                               height: 50,

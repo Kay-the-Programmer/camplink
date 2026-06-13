@@ -7,6 +7,8 @@ import '../../app_colors.dart';
 import '../../models/notification.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/notification_service.dart';
+import '../../services/order_service.dart';
+import '../buyer/order_detail_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -35,8 +37,29 @@ class NotificationsScreen extends StatelessWidget {
         return Symbols.where_to_vote;
       case NotificationType.rideCancelled:
         return Symbols.cancel;
+      case NotificationType.accountApproved:
+        return Symbols.verified;
+      case NotificationType.accountRejected:
+        return Symbols.gpp_bad;
       case NotificationType.other:
         return Symbols.notifications;
+    }
+  }
+
+  /// Mark read, then open the linked order if this notification points at one.
+  Future<void> _onTap(BuildContext context, NotificationService svc,
+      AppNotification n) async {
+    if (!n.read) svc.markRead(n.id);
+    if (!notifOpensOrder(n.type) || n.orderId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final order = await OrderService().fetchById(n.orderId!);
+      navigator.push(
+          MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)));
+    } catch (_) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Could not open this order.')));
     }
   }
 
@@ -87,13 +110,21 @@ class NotificationsScreen extends StatelessWidget {
                                   ? FontWeight.normal
                                   : FontWeight.bold)),
                       subtitle: Text(n.body),
-                      trailing: Text(
-                        DateFormat.MMMd().add_jm().format(n.createdAt),
-                        style: const TextStyle(fontSize: 11),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            DateFormat.MMMd().add_jm().format(n.createdAt),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          if (notifOpensOrder(n.type)) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Symbols.chevron_right,
+                                size: 18, color: Colors.grey),
+                          ],
+                        ],
                       ),
-                      onTap: () {
-                        if (!n.read) svc.markRead(n.id);
-                      },
+                      onTap: () => _onTap(context, svc, n),
                     );
                   },
                 );

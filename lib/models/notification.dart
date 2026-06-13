@@ -10,6 +10,8 @@ enum NotificationType {
   rideAccepted,
   rideCompleted,
   rideCancelled,
+  accountApproved,
+  accountRejected,
   other,
 }
 
@@ -26,7 +28,23 @@ NotificationType notifTypeFromString(String? s) {
     case 'RIDE_ACCEPTED':      return NotificationType.rideAccepted;
     case 'RIDE_COMPLETED':     return NotificationType.rideCompleted;
     case 'RIDE_CANCELLED':     return NotificationType.rideCancelled;
+    case 'ACCOUNT_APPROVED':   return NotificationType.accountApproved;
+    case 'ACCOUNT_REJECTED':   return NotificationType.accountRejected;
     default:                   return NotificationType.other;
+  }
+}
+
+/// Whether tapping this notification should open an order's detail screen.
+bool notifOpensOrder(NotificationType t) {
+  switch (t) {
+    case NotificationType.orderPlaced:
+    case NotificationType.orderConfirmed:
+    case NotificationType.orderDelivered:
+    case NotificationType.orderCancelled:
+    case NotificationType.paymentConfirmed:
+      return true;
+    default:
+      return false;
   }
 }
 

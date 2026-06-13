@@ -19,6 +19,7 @@ import '../services/ride_service.dart';
 import '../services/service_listing_service.dart';
 import '../services/shopping_request_service.dart';
 import '../services/search_history_service.dart';
+import '../widgets/confirm.dart';
 import '../widgets/notifications_bell.dart';
 import '../widgets/product_card.dart';
 import '../widgets/profile_editor.dart';
@@ -173,7 +174,19 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
             IconButton(
               icon: const Icon(Symbols.logout),
               tooltip: 'Logout',
-              onPressed: () => context.read<AuthProvider>().logout(),
+              onPressed: () async {
+                final ok = await confirmAction(
+                  context,
+                  title: 'Log out?',
+                  message: 'You will need to sign in again to continue.',
+                  confirmLabel: 'Log out',
+                  icon: Symbols.logout,
+                  destructive: true,
+                );
+                if (ok && context.mounted) {
+                  context.read<AuthProvider>().logout();
+                }
+              },
             ),
           ],
         );

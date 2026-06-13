@@ -8,6 +8,7 @@ import '../../app_colors.dart';
 import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cart_provider.dart';
+import '../../services/api_client.dart';
 import '../../widgets/seller_rating_view.dart';
 import '../common/chat_screen.dart';
 import '../../widgets/auth_prompt.dart';
@@ -52,15 +53,7 @@ class ProductDetailScreen extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          AspectRatio(
-            aspectRatio: 1,
-            child: product.imageUrl != null
-                ? CachedNetworkImage(imageUrl: product.imageUrl!, fit: BoxFit.cover)
-                : Container(
-                    color: Colors.grey.shade200,
-                    child: const Icon(Symbols.shopping_bag, size: 96, color: Colors.grey),
-                  ),
-          ),
+          _ProductGallery(images: product.imageUrls),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -140,6 +133,89 @@ class ProductDetailScreen extends StatelessWidget {
                   },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A swipable image gallery with page dots. Falls back to a placeholder when
+/// the product has no images, and shows a single static image (no dots) when
+/// there is exactly one.
+class _ProductGallery extends StatefulWidget {
+  final List<String> images;
+  const _ProductGallery({required this.images});
+
+  @override
+  State<_ProductGallery> createState() => _ProductGalleryState();
+}
+
+class _ProductGalleryState extends State<_ProductGallery> {
+  final _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.images;
+    if (images.isEmpty) {
+      return AspectRatio(
+        aspectRatio: 1,
+        child: Container(
+          color: Colors.grey.shade200,
+          child: const Icon(Symbols.shopping_bag, size: 96, color: Colors.grey),
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: images.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (_, i) => CachedNetworkImage(
+              imageUrl: ApiClient.fileUrl(images[i]),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              placeholder: (_, _) =>
+                  const Center(child: CircularProgressIndicator()),
+              errorWidget: (_, _, _) =>
+                  const Icon(Symbols.broken_image, size: 64),
+            ),
+          ),
+          if (images.length > 1)
+            Positioned(
+              bottom: 10,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(images.length, (i) {
+                  final active = i == _page;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 18 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: active ? kOrange : Colors.white70,
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black26, blurRadius: 2),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
       ),
     );
   }

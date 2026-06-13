@@ -127,6 +127,7 @@ class AuthProvider extends ChangeNotifier {
       fullName: fullName,
     );
     await _saveToken(res['token'] as String);
+
     _user = AppUser.fromJson(res['user'] as Map<String, dynamic>);
     _needsProfileCompletion = false;
     notifyListeners();

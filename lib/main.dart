@@ -34,6 +34,7 @@ class CampLinkApp extends StatelessWidget {
       child: MaterialApp(
         title: 'CampLink',
         debugShowCheckedModeBanner: false,
+        navigatorKey: rootNavigatorKey,
         scaffoldMessengerKey: rootMessengerKey,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: kOrange),

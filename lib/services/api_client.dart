@@ -2,16 +2,16 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Backend base URL. Override at build/run time without editing this file:
-///   flutter run --dart-define=API_BASE_URL=https://camplink-api.onrender.com/api
+/// Backend base URL. Defaults to PRODUCTION (Render) so a plain
+/// `flutter build apk` produces a working APK.
 ///
-/// Defaults below are for LOCAL development:
-///   Android emulator:        http://10.0.2.2:8080/api
-///   iOS simulator / desktop: http://localhost:8080/api
-///   Physical device on LAN:  http://YOUR_PC_LAN_IP:8080/api
+/// For LOCAL development, override at run time without editing this file:
+///   Android emulator:        flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api
+///   iOS simulator / desktop: flutter run --dart-define=API_BASE_URL=http://localhost:8080/api
+///   Physical device on LAN:  flutter run --dart-define=API_BASE_URL=http://YOUR_PC_LAN_IP:8080/api
 const _kBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://172.20.128.1:8080/api',
+  defaultValue: 'https://camplink-backend.onrender.com/api',
 );
 
 class ApiException implements Exception {
@@ -99,10 +99,19 @@ class ApiClient {
   }
 
   /// Full URL for a file served by the backend.
+  ///
+  /// Upload paths come back host-relative (e.g. `/api/files/uuid.jpg`). Since
+  /// [_kBaseUrl] already ends in `/api`, naively concatenating would produce a
+  /// doubled `…/api/api/files/…` segment that 404s. We strip the trailing
+  /// `/api` before joining, and also repair the doubled segment in any URL that
+  /// was stored back when this bug was live.
   static String fileUrl(String? path) {
     if (path == null || path.isEmpty) return '';
-    if (path.startsWith('http')) return path;
-    return '$_kBaseUrl$path';
+    final origin = _kBaseUrl.endsWith('/api')
+        ? _kBaseUrl.substring(0, _kBaseUrl.length - 4)
+        : _kBaseUrl;
+    final url = path.startsWith('http') ? path : '$origin$path';
+    return url.replaceFirst('/api/api/', '/api/');
   }
 }
 

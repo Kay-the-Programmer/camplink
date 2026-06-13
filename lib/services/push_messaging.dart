@@ -4,12 +4,33 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import '../screens/buyer/order_detail_screen.dart';
 import 'notification_service.dart';
+import 'order_service.dart';
 
 /// Global messenger key so foreground pushes can be shown as snackbars from
 /// anywhere, without a BuildContext.
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+
+/// Global navigator key so a tapped push (handled without a widget context)
+/// can route to the relevant screen.
+final GlobalKey<NavigatorState> rootNavigatorKey =
+    GlobalKey<NavigatorState>();
+
+/// Fetch an order by id and open its detail screen using the root navigator.
+/// Best-effort: silently does nothing if the order can't be loaded.
+Future<void> openOrderById(String orderId) async {
+  if (orderId.isEmpty) return;
+  final nav = rootNavigatorKey.currentState;
+  if (nav == null) return;
+  try {
+    final order = await OrderService().fetchById(orderId);
+    nav.push(MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)));
+  } catch (_) {
+    // Order unavailable (deleted, or not ours) — ignore.
+  }
+}
 
 /// Background/terminated handler. The OS already displays messages that carry a
 /// notification payload, so nothing extra is needed for the basic case.
@@ -54,6 +75,12 @@ class PushMessaging {
         } catch (_) {}
       });
       _messageSub = FirebaseMessaging.onMessage.listen(_showForeground);
+
+      // Tapping a push that opened/resumed the app routes to the order.
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleTap);
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) _handleTap(initial);
+
       _started = true;
     } catch (_) {
       // Firebase unavailable — ignore.
@@ -74,6 +101,16 @@ class PushMessaging {
     _messageSub = null;
     _token = null;
     _started = false;
+  }
+
+  /// Route a tapped notification to its target. Order notifications carry the
+  /// order id in the `refId` data field.
+  static void _handleTap(RemoteMessage message) {
+    final type = message.data['type'] ?? '';
+    final refId = message.data['refId'] ?? '';
+    if (type.toString().startsWith('ORDER') && refId.toString().isNotEmpty) {
+      openOrderById(refId.toString());
+    }
   }
 
   static void _showForeground(RemoteMessage message) {
